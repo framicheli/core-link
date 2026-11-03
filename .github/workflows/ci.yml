@@ -97,6 +97,24 @@ jobs:
                     # which the address sanitizer can't use.
                     cargo +nightly fuzz run --target x86_64-unknown-linux-gnu "$t" -- -max_total_time=30 -rss_limit_mb=2048
                   done
+    coverage:
+        # Line coverage of the offline tests (fakes + replay), generated code excluded.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: llvm-tools-preview
+            - uses: Swatinem/rust-cache@v2
+            - uses: taiki-e/install-action@v2
+              with:
+                  tool: cargo-llvm-cov
+            - run: cargo llvm-cov --workspace --all-features --ignore-filename-regex 'generated/' --lcov --output-path lcov.info
+            - uses: codecov/codecov-action@v5
+              with:
+                  files: lcov.info
+                  token: ${{ secrets.CODECOV_TOKEN }}
+                  fail_ci_if_error: false
     live:
         # Every typed method, the ZMQ stream and IPC (Core 30+) against real Core, one job per supported major.
         runs-on: ubuntu-latest

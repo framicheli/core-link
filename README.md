@@ -1,40 +1,39 @@
-# bitcoin_rpc
+<div align="center">
 
-An async Rust library for interacting with Bitcoin Core.
+# core-link
 
-- **`bitcoin-core-rpc`**: a complete, typed, async JSON-RPC client. One
-  method per public RPC in Core 31 (164 RPCs across 9 sections), a
-  `Wallet` handle for the wallet RPCs, the regtest/hidden RPCs, automatic
-  Core version detection, and a `raw_call` escape hatch.
-- **`bitcoin-node-api`**: a small set of backend-agnostic capability traits
-  (`ChainSource`, `MempoolSource`, `Broadcaster`, `FeeEstimator`,
-  `TemplateSource`, `EventSource`) that libraries can program against
-  without caring how they reach the node.
-- **`bitcoin-core-zmq`**: Core's ZMQ `sequence` notifications as an
-  `EventSource` stream.
-- **`bitcoin-core-ipc`**: Core 30+'s Cap'n Proto mining interface as a
-  `TemplateSource`, for miners who care about milliseconds.
-- **`bitcoin-node-mock`**: an in-memory node implementing all six traits,
-  for testing code written against them without a `bitcoind`.
-- **`bitcoin-node-ldk`**: LDK's `lightning-block-sync` `BlockSource` over
-  any `ChainSource`, the first external adapter built on the traits.
-- **`bitcoin-node-bdk`**: BDK chain sync over any `ChainSource` and
-  `MempoolSource`: block by block through reorgs, the mempool with
-  evictions, or by compact block filters (fetching only the blocks that
-  touch the wallet), as the events `bdk_wallet` applies.
-- **`bitcoin-gateway`** (a binary, not a crate): Core over gRPC, REST and
-  WebSocket, behind per-key permissions
-  ([§16](#16-bitcoin-gateway-core-over-grpc-rest-and-websocket)).
+**Async Rust for Bitcoin Core: typed RPC, ZMQ, IPC mining, and a gRPC/REST/WebSocket gateway.**
 
-Supported Bitcoin Core versions: **29, 30 and 31**, each tested live in CI
-against the real release binary. The rule: the major versions Bitcoin Core
-itself maintains (the latest three). When Core ships a new major, it is
-added and the one Core retires is dropped.
+[![CI](https://github.com/framicheli/core-link/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/framicheli/core-link/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/framicheli/core-link/branch/main/graph/badge.svg)](https://codecov.io/gh/framicheli/core-link)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89-orange?logo=rust)](https://blog.rust-lang.org/)
+[![Rust 2024](https://img.shields.io/badge/edition-2024-orange?logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/)
+[![Bitcoin Core](https://img.shields.io/badge/Bitcoin%20Core-29%20%7C%2030%20%7C%2031-f7931a?logo=bitcoin&logoColor=white)](https://bitcoincore.org/en/releases/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](#18-license)
 
-Status: pre-release (`0.1.0`), not yet on crates.io. Stages A–E of the plan
-are done, Phase 1.5's F (production `Client`), G (mock, tracing) and H1
-(docs, metadata, CHANGELOG), and Phase 2 (I–L, the gateway; M, the LDK
-adapter). No release has been tagged yet.
+</div>
+
+---
+
+## What's inside
+
+| Crate                            | What it gives you                                                                                                                                                                                                     |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`bitcoin-core-rpc`**           | A complete, typed, async JSON-RPC client: one method per public RPC in Core 31 (164 RPCs across 9 sections), a `Wallet` handle, regtest/hidden RPCs, automatic Core version detection, and a `raw_call` escape hatch. |
+| **`bitcoin-node-api`**           | Backend-agnostic capability traits (`ChainSource`, `MempoolSource`, `Broadcaster`, `FeeEstimator`, `TemplateSource`, `EventSource`) that libraries program against without caring how they reach the node.            |
+| **`bitcoin-core-zmq`**           | Core's ZMQ `sequence` notifications as an `EventSource` stream.                                                                                                                                                       |
+| **`bitcoin-core-ipc`**           | Core 30+'s Cap'n Proto mining interface as a `TemplateSource`, for miners who care about milliseconds.                                                                                                                |
+| **`bitcoin-node-mock`**          | An in-memory node implementing all six traits: test your code without a `bitcoind`.                                                                                                                                   |
+| **`bitcoin-node-ldk`**           | LDK's `lightning-block-sync` `BlockSource` over any `ChainSource`.                                                                                                                                                    |
+| **`bitcoin-node-bdk`**           | BDK chain sync over any `ChainSource` + `MempoolSource`: block by block through reorgs, the mempool with evictions, or compact block filters, as the events `bdk_wallet` applies.                                     |
+| **`bitcoin-gateway`** _(binary)_ | Core over gRPC, REST and WebSocket, behind per-key permissions ([§16](#16-bitcoin-gateway-core-over-grpc-rest-and-websocket)).                                                                                        |
+
+## Supported Bitcoin Core
+
+**29, 30 and 31**, each tested live in CI against the real release binary.
+The rule: the major versions Bitcoin Core itself maintains (the latest
+three). When Core ships a new major, it is added and the one Core retires is
+dropped.
 
 ---
 
@@ -94,13 +93,13 @@ JSON-RPC, ZMQ, IPC, a mock, or (later) a remote gateway.
 
 ### Prior art, and what was reused
 
-| Piece                 | State before this project                                                         | Here                                         |
-| --------------------- | --------------------------------------------------------------------------------- | -------------------------------------------- |
-| Async JSON-RPC client | None maintained                                                                   | `bitcoin-core-rpc`                           |
-| Response types        | `corepc-types`: per-version structs plus a `model` layer in `rust-bitcoin` types | **Used, not forked**                         |
-| IPC mining            | `bitcoin_core_sv2` (Sv2-shaped, heavy deps)                                       | `bitcoin-core-ipc`, written directly on capnp |
-| Chain-source trait    | LDK, BDK, p2poolv2: each private to its project                                   | `bitcoin-node-api`                           |
-| gRPC / WS gateway     | `btc-buf` (Go, early), `btc-rpc-proxy` (auth proxy)                               | `bitcoin-gateway`                            |
+| Piece                 | State before this project                                                        | Here                                          |
+| --------------------- | -------------------------------------------------------------------------------- | --------------------------------------------- |
+| Async JSON-RPC client | None maintained                                                                  | `bitcoin-core-rpc`                            |
+| Response types        | `corepc-types`: per-version structs plus a `model` layer in `rust-bitcoin` types | **Used, not forked**                          |
+| IPC mining            | `bitcoin_core_sv2` (Sv2-shaped, heavy deps)                                      | `bitcoin-core-ipc`, written directly on capnp |
+| Chain-source trait    | LDK, BDK, p2poolv2: each private to its project                                  | `bitcoin-node-api`                            |
+| gRPC / WS gateway     | `btc-buf` (Go, early), `btc-rpc-proxy` (auth proxy)                              | `bitcoin-gateway`                             |
 
 ### Scope decisions
 
@@ -154,12 +153,12 @@ Any Rust developer who wants a complete, typed, async client for Core
 
 The first two drove the design, and they need very different things:
 
-|                | Wallet-like (wallets, LN nodes, indexers)                                   | Mining (pools, solo miners)                        |
-| -------------- | --------------------------------------------------------------------------- | -------------------------------------------------- |
-| Main job       | Sync chain state, find relevant transactions/UTXOs                          | Build a block template, submit blocks              |
-| Key calls      | blocks/headers, `getrawtransaction`, `gettxout`, `sendrawtransaction`, fees | `getblocktemplate`, `submitblock`                  |
-| Events         | New block, mempool transaction                                              | New tip, as fast as possible; template updates     |
-| Latency        | Seconds are fine                                                            | Milliseconds matter (stale work is lost money)     |
+|                | Wallet-like (wallets, LN nodes, indexers)                                   | Mining (pools, solo miners)                         |
+| -------------- | --------------------------------------------------------------------------- | --------------------------------------------------- |
+| Main job       | Sync chain state, find relevant transactions/UTXOs                          | Build a block template, submit blocks               |
+| Key calls      | blocks/headers, `getrawtransaction`, `gettxout`, `sendrawtransaction`, fees | `getblocktemplate`, `submitblock`                   |
+| Events         | New block, mempool transaction                                              | New tip, as fast as possible; template updates      |
+| Latency        | Seconds are fine                                                            | Milliseconds matter (stale work is lost money)      |
 | Best transport | JSON-RPC + ZMQ                                                              | IPC (`createNewBlock`, `waitNext`), RPC as fallback |
 
 The overlap between them is small (tip, block fetch, broadcast, events) but
@@ -207,7 +206,7 @@ why those belong in a separate gateway process (see
 | ------------------ | :------: | :-----: | :---------: | :-: | :----------------: | :-------------------------------------: |
 | `bitcoin-core-rpc` |    ✓     |    ✓    |      ✓      |  ✓  | ✓ (GBT + longpoll) | ✓ (`waitfornewblock` poll, blocks only) |
 | `bitcoin-core-zmq` |          |         |             |     |                    |                    ✓                    |
-| `bitcoin-core-ipc` | tip only |         |             |     |         ✓          |    ✓ (`waitTipChanged`, tip only)     |
+| `bitcoin-core-ipc` | tip only |         |             |     |         ✓          |     ✓ (`waitTipChanged`, tip only)      |
 
 A typical deployment combines them: RPC for chain/mempool/broadcast/fees,
 ZMQ for events, and IPC for templates when the node is Core 30+.
@@ -453,20 +452,20 @@ revisited if someone needs `Box<dyn ChainSource>`.
 
 ### The traits
 
-| Trait            | Methods                                                                     | Purpose                                     |
-| ---------------- | --------------------------------------------------------------------------- | ------------------------------------------- |
-| `ChainSource`    | `tip`, `block_hash`, `header`, `header_info`, `block_filter`, `block`, `transaction`, `utxo` | Read the best chain        |
-| `MempoolSource`  | `txids`, `snapshot`, `entry`                                                | Read the mempool                            |
-| `Broadcaster`    | `broadcast`, `broadcast_package`, `test_accept`                             | Send transactions                           |
-| `FeeEstimator`   | `estimate_fee(FeeTarget) -> Option<FeeRate>`                                | Fee estimates (`None` = no estimate yet)    |
-| `TemplateSource` | `template`, `transactions`, `wait_next`, `submit_solution`                  | Mining work                                 |
-| `EventSource`    | `subscribe() -> EventStream`                                                | Block and mempool events                    |
+| Trait            | Methods                                                                                      | Purpose                                  |
+| ---------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| `ChainSource`    | `tip`, `block_hash`, `header`, `header_info`, `block_filter`, `block`, `transaction`, `utxo` | Read the best chain                      |
+| `MempoolSource`  | `txids`, `snapshot`, `entry`                                                                 | Read the mempool                         |
+| `Broadcaster`    | `broadcast`, `broadcast_package`, `test_accept`                                              | Send transactions                        |
+| `FeeEstimator`   | `estimate_fee(FeeTarget) -> Option<FeeRate>`                                                 | Fee estimates (`None` = no estimate yet) |
+| `TemplateSource` | `template`, `transactions`, `wait_next`, `submit_solution`                                   | Mining work                              |
+| `EventSource`    | `subscribe() -> EventStream`                                                                 | Block and mempool events                 |
 
 Design choices worth knowing:
 
 - **`MempoolSource` is separate from `ChainSource`** because some backends
   (REST, IPC) can serve chain data but not mempool data.
-- **`MempoolSource::snapshot()`** returns the txids *and* the mempool
+- **`MempoolSource::snapshot()`** returns the txids _and_ the mempool
   sequence number the node will assign next. That is what makes a gap-free
   mempool copy possible: subscribe to events, snapshot, then skip tx events
   whose sequence is below the snapshot's. Its default implementation calls
@@ -869,22 +868,22 @@ named.
   submits, and learns of new work from `wait_next` or a block event,
   whichever comes first.
 
-  ```sh
-  cargo run -p consumers --bin template-feed -- \
-      --rpc http://127.0.0.1:18443 --user u --pass p \
-      [--ipc <datadir>/regtest/node.sock] [--zmq tcp://127.0.0.1:28333] \
-      [--mine N --payout <address>]
-  ```
+    ```sh
+    cargo run -p consumers --bin template-feed -- \
+        --rpc http://127.0.0.1:18443 --user u --pass p \
+        [--ipc <datadir>/regtest/node.sock] [--zmq tcp://127.0.0.1:28333] \
+        [--mine N --payout <address>]
+    ```
 
 - **`follower`** (`src/follower.rs`, binary `chain-follower`): follows the
   best chain and mempool the way a wallet backend would, handling reorgs by
   walking `prev_blockhash`.
 
-  ```sh
-  cargo run -p consumers --bin chain-follower -- \
-      --rpc http://127.0.0.1:18443 --user u --pass p \
-      [--zmq tcp://127.0.0.1:28333] [--start HEIGHT]
-  ```
+    ```sh
+    cargo run -p consumers --bin chain-follower -- \
+        --rpc http://127.0.0.1:18443 --user u --pass p \
+        [--zmq tcp://127.0.0.1:28333] [--start HEIGHT]
+    ```
 
 Both run live on Core 29–31, with templates over RPC and IPC and events over
 ZMQ and RPC polling. What they exposed fed back into the API (stage E4,
@@ -1034,14 +1033,14 @@ BITCOIND_EXE=$(scripts/fetch-bitcoind.sh 31.2) \
 One run on a 16-thread laptop, Core 31.2,
 default limits except `max_connections = 256`:
 
-| Phase                                   | Result                                                         |
-| --------------------------------------- | -------------------------------------------------------------- |
-| REST reads, 64 clients                  | ~22,000 req/s, p50 2.9 ms, p99 3.4 ms, no errors               |
-| A key with `max_in_flight = 4`, 32 clients | ~7,400 req/s served, the rest 429 at once; no 5xx           |
+| Phase                                        | Result                                                          |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| REST reads, 64 clients                       | ~22,000 req/s, p50 2.9 ms, p99 3.4 ms, no errors                |
+| A key with `max_in_flight = 4`, 32 clients   | ~7,400 req/s served, the rest 429 at once; no 5xx               |
 | 100 connections from one IP, 512 from 8 more | 36 and 320 refused; 256 open; new clients refused until it ends |
-| 16 SSE subscribers                      | every block to every one within ~10 ms; the 17th gets 429      |
-| WebSocket `getblockcount`, 16 connections | ~21,000 calls/s, p99 1.2 ms                                  |
-| Memory                                  | 12 MiB idle, 22 MiB under load, flat between rounds            |
+| 16 SSE subscribers                           | every block to every one within ~10 ms; the 17th gets 429       |
+| WebSocket `getblockcount`, 16 connections    | ~21,000 calls/s, p99 1.2 ms                                     |
+| Memory                                       | 12 MiB idle, 22 MiB under load, flat between rounds             |
 
 REST reads are bounded by `node_max_in_flight` (8 calls to Core at a time):
 the latency is mostly the wait for a slot, which is the point.
@@ -1078,14 +1077,15 @@ RECORD=1 BITCOIND_EXE=$(scripts/fetch-bitcoind.sh 31.2) \
 `.github/workflows/ci.yml` runs these jobs on every push to `main` and every
 pull request:
 
-| Job       | What it does                                                                                                                            |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `check`   | `cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo test --all-features` (fakes + replay)              |
-| `codegen` | Reads the `capnp` version from the generated files' headers, builds that exact `capnp` (cached), runs `ipc-codegen`, fails on any diff |
-| `grpc-codegen` | Runs `grpc-codegen` (vendored `protoc`) and fails on any diff in the gateway's generated gRPC code                          |
-| `msrv`    | `cargo check --workspace --all-targets --all-features` on Rust 1.89, so `rust-version` stays true                                       |
-| `fuzz`    | The gateway's fuzz targets on nightly, 30 seconds each                                                                                  |
-| `live`    | Matrix over Core 29.5, 30.4, 31.2: downloads (cached) and runs every crate's live tests                                          |
+| Job            | What it does                                                                                                                           |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `check`        | `cargo fmt --check`, `cargo clippy --all-targets --all-features -D warnings`, `cargo test --all-features` (fakes + replay)             |
+| `codegen`      | Reads the `capnp` version from the generated files' headers, builds that exact `capnp` (cached), runs `ipc-codegen`, fails on any diff |
+| `grpc-codegen` | Runs `grpc-codegen` (vendored `protoc`) and fails on any diff in the gateway's generated gRPC code                                     |
+| `msrv`         | `cargo check --workspace --all-targets --all-features` on Rust 1.89, so `rust-version` stays true                                      |
+| `fuzz`         | The gateway's fuzz targets on nightly, 30 seconds each                                                                                 |
+| `coverage`     | `cargo llvm-cov` over the workspace tests (generated code excluded), uploaded to Codecov                                               |
+| `live`         | Matrix over Core 29.5, 30.4, 31.2: downloads (cached) and runs every crate's live tests                                                |
 
 A second workflow, `release.yml`, publishes on `v*` tags: the gateway's
 release binaries and container image (see §16, Operations). On a pull
@@ -1112,7 +1112,7 @@ locally, just regenerate and commit.
   covers it.
 - **Changing an IPC schema / adding a Core version**: copy the schemas into
   `schema/vNN/`, add `vNN` to `ipc-codegen`'s list, `cargo run -p
-  ipc-codegen`, wire it into `version.rs`, commit the generated code.
+ipc-codegen`, wire it into `version.rs`, commit the generated code.
 - **Changing the gateway's proto**: edit
   `bin/bitcoin-gateway/proto/bitcoin/node/v1/node.proto`, run
   `cargo run -p grpc-codegen`, commit the generated code.
@@ -1130,25 +1130,25 @@ The work was planned in [`DESIGN.md`](DESIGN.md) and carried out in stages,
 each one a pull request, with the rule that the trait layer should become
 usable early so the other backends could start.
 
-| Stage | What                                                                                                   |
-| ----- | ------------------------------------------------------------------------------------------------------ |
-| —     | Research: why the library should exist, prior art, the full RPC inventory (`RpcInventory.md`)          |
-| A     | Foundation: CI, error types, `Client`/`Auth`/`Version`/`Feature`, the fake bitcoind and fixtures       |
-| B     | The `core` methods: every trait implemented over RPC, including the shared GBT longpoll                |
+| Stage | What                                                                                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| —     | Research: why the library should exist, prior art, the full RPC inventory (`RpcInventory.md`)                                                           |
+| A     | Foundation: CI, error types, `Client`/`Auth`/`Version`/`Feature`, the fake bitcoind and fixtures                                                        |
+| B     | The `core` methods: every trait implemented over RPC, including the shared GBT longpoll                                                                 |
 | C     | Typed methods by section (blockchain, mining, network, control, zmq, raw tx, util, signer, regtest), then live tests against Core 31 with record/replay |
-| E1    | `bitcoin-core-zmq`                                                                                     |
-| E2    | Live tests on Core 28, 29, 30, 31 in CI                                                                |
-| E3    | `bitcoin-core-ipc` and `ipc-codegen`                                                                   |
-| E4    | The two consumers; their findings applied back to `bitcoin-node-api`                                   |
-| D     | The wallet: `Wallet` handle and lifecycle (D1), addresses/coins/history (D2), spending/PSBTs/descriptors (D3) |
-| F–H   | Phase 1.5: method classes and retries, batching, the mock, `tracing`, docs and release prep            |
-| I     | Gateway skeleton: config, hashed tokens, scopes, the composite backend, event fan-out, listeners and TLS |
-| J     | gRPC: the proto and committed codegen, one handler per trait method, events, health, reflection        |
-| K     | REST (encodings, caching, SSE, OpenAPI) and the WebSocket pass-through; the `serde` shape frozen as v1 |
-| L     | Metrics, health and readiness, the live gateway test on Core 28–31, release packaging                  |
-| M     | `bitcoin-node-ldk`: LDK's `BlockSource` over the traits, and what it taught about them                 |
-| —     | Hardening: `header_info`, gateway limits, fuzzing, a load test                                          |
-| N     | `bitcoin-node-bdk`: BDK's emitter and filter sync over the traits; `ChainSource::block_filter`        |
+| E1    | `bitcoin-core-zmq`                                                                                                                                      |
+| E2    | Live tests on Core 28, 29, 30, 31 in CI                                                                                                                 |
+| E3    | `bitcoin-core-ipc` and `ipc-codegen`                                                                                                                    |
+| E4    | The two consumers; their findings applied back to `bitcoin-node-api`                                                                                    |
+| D     | The wallet: `Wallet` handle and lifecycle (D1), addresses/coins/history (D2), spending/PSBTs/descriptors (D3)                                           |
+| F–H   | Phase 1.5: method classes and retries, batching, the mock, `tracing`, docs and release prep                                                             |
+| I     | Gateway skeleton: config, hashed tokens, scopes, the composite backend, event fan-out, listeners and TLS                                                |
+| J     | gRPC: the proto and committed codegen, one handler per trait method, events, health, reflection                                                         |
+| K     | REST (encodings, caching, SSE, OpenAPI) and the WebSocket pass-through; the `serde` shape frozen as v1                                                  |
+| L     | Metrics, health and readiness, the live gateway test on Core 28–31, release packaging                                                                   |
+| M     | `bitcoin-node-ldk`: LDK's `BlockSource` over the traits, and what it taught about them                                                                  |
+| —     | Hardening: `header_info`, gateway limits, fuzzing, a load test                                                                                          |
+| N     | `bitcoin-node-bdk`: BDK's emitter and filter sync over the traits; `ChainSource::block_filter`                                                          |
 
 Every step followed the same loop: write the code, add a fixture and a test,
 `cargo test && cargo clippy --all-targets`, commit. Facts about Core were
@@ -1167,7 +1167,7 @@ the live runs taught:
 - corepc-types mismatches (`unloadwallet` returning `{warnings}`,
   verbose `gettransaction` sending `decoded` as an object) are handled in
   the client.
-- ZMQ's mempool sequence from `getrawmempool` is the *next* one Core
+- ZMQ's mempool sequence from `getrawmempool` is the _next_ one Core
   assigns, so events at or above it are new.
 
 ---
@@ -1227,19 +1227,19 @@ time against every key's hash. Why:
 Every scope is split read/write, so nobody has to put one scope spanning
 `getbalance` and `sendtoaddress` in front of a hot wallet:
 
-| Scope                     | Unlocks                                                                 |
-| ------------------------- | ----------------------------------------------------------------------- |
-| `chain:read` / `:write`   | blockchain reads / `invalidateblock`, `reconsiderblock`, `pruneblockchain`… |
-| `mempool:read`            | mempool reads                                                           |
-| `broadcast`               | `sendrawtransaction`, `submitpackage`, `testmempoolaccept`              |
-| `fees:read`               | `estimatesmartfee`                                                      |
-| `events`                  | event streams                                                           |
+| Scope                     | Unlocks                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `chain:read` / `:write`   | blockchain reads / `invalidateblock`, `reconsiderblock`, `pruneblockchain`…  |
+| `mempool:read`            | mempool reads                                                                |
+| `broadcast`               | `sendrawtransaction`, `submitpackage`, `testmempoolaccept`                   |
+| `fees:read`               | `estimatesmartfee`                                                           |
+| `events`                  | event streams                                                                |
 | `mining:read` / `:write`  | `getblocktemplate`, `getmininginfo` / `submitblock`, `prioritisetransaction` |
-| `network:read` / `:write` | `getpeerinfo`… / `addnode`, `setban`, `disconnectnode`…                 |
-| `util:read`               | `validateaddress`, `decoderawtransaction`, `deriveaddresses`…           |
-| `wallet:<name>:read`      | reads on that wallet only                                               |
-| `wallet:<name>:write`     | spending, signing, address and label changes on that wallet             |
-| `admin`                   | everything, including the admin-only methods                            |
+| `network:read` / `:write` | `getpeerinfo`… / `addnode`, `setban`, `disconnectnode`…                      |
+| `util:read`               | `validateaddress`, `decoderawtransaction`, `deriveaddresses`…                |
+| `wallet:<name>:read`      | reads on that wallet only                                                    |
+| `wallet:<name>:write`     | spending, signing, address and label changes on that wallet                  |
+| `admin`                   | everything, including the admin-only methods                                 |
 
 One table (`bin/bitcoin-gateway/src/scopes.rs`) gives every method
 `bitcoin-core-rpc` types an area; its read/write class comes from the
@@ -1518,34 +1518,34 @@ already open keep running.
 [`gateway.example.toml`](bin/bitcoin-gateway/gateway.example.toml) is the
 annotated version. Every section but `[node]` is optional.
 
-| Setting                     | Default         | Meaning                                                          |
-| --------------------------- | --------------- | ---------------------------------------------------------------- |
-| `[node] rpc_url`            | (required)      | Core's RPC, `http://` or `https://`                              |
-| `[node] cookie`             |                 | Core's `.cookie`, re-read after a 401; or:                       |
-| `[node] rpc_user`, `rpc_password` |           | `-rpcuser`/`-rpcpassword` or an `-rpcauth` user                  |
-| `[node] zmq`                | none: RPC polling | Core's `-zmqpubsequence` endpoint, `tcp://…`                   |
-| `[listen] grpc`, `http`, `metrics` | none     | addresses; `--grpc`, `--http`, `--metrics` override them         |
-| `[http] cors_origins`       | `[]`            | origins that get CORS headers (REST, WebSocket, gRPC-Web)        |
-| `[http] public_cache`       | `false`         | immutable responses `public` instead of `private`                |
-| `[grpc] web`                | `false`         | also accept gRPC-Web                                             |
-| `[ws] max_message_bytes`    | `1048576`       | largest WebSocket message; larger closes with 1009               |
-| `[ws] max_in_flight`        | `16`            | calls one WebSocket connection may have running                  |
-| `[events] buffer`           | `1024`          | events buffered per subscriber before it gets `Lagged`           |
-| `[limits] max_connections`  | `1024`          | open connections per listener                                    |
-| `[limits] max_connections_per_ip` | `64`      | open connections per client IP, per listener                     |
-| `[limits] handshake_timeout_secs` | `10`      | TLS handshake, first bytes, each HTTP/1.1 request's headers      |
-| `[limits] http2_max_streams` | `100`          | concurrent HTTP/2 streams (gRPC calls) per connection            |
-| `[limits] max_subscriptions` | `16`           | event subscriptions per key, all APIs together                   |
-| `[limits] key_max_in_flight` | `32`           | calls to Core per key at once                                    |
-| `[limits] node_max_in_flight` | `8`           | calls to Core at once, all keys; below `-rpcthreads` + `-rpcworkqueue` |
-| `[limits] node_queue_secs`  | `10`            | how long a call waits for one of those                           |
-| `[tls] cert`, `key`         | none            | PEM files; every listener serves TLS; reloaded on `SIGHUP`       |
-| `[[key]] name`              | (required)      | shown in logs and metrics                                        |
-| `[[key]] token_sha256`      | (required)      | from `bitcoin-gateway hash-token`                                |
-| `[[key]] allow`             | (required)      | scopes, see above                                                |
-| `[[key]] rate`              | unlimited       | `{ per_second = 50, burst = 100 }`, shared by every API          |
-| `[[key]] allow_unknown`     | `false`         | an `admin` key may call methods the gateway doesn't know         |
-| `[[key]] max_in_flight`     | `key_max_in_flight` | this key's calls to Core at once                             |
+| Setting                            | Default             | Meaning                                                                |
+| ---------------------------------- | ------------------- | ---------------------------------------------------------------------- |
+| `[node] rpc_url`                   | (required)          | Core's RPC, `http://` or `https://`                                    |
+| `[node] cookie`                    |                     | Core's `.cookie`, re-read after a 401; or:                             |
+| `[node] rpc_user`, `rpc_password`  |                     | `-rpcuser`/`-rpcpassword` or an `-rpcauth` user                        |
+| `[node] zmq`                       | none: RPC polling   | Core's `-zmqpubsequence` endpoint, `tcp://…`                           |
+| `[listen] grpc`, `http`, `metrics` | none                | addresses; `--grpc`, `--http`, `--metrics` override them               |
+| `[http] cors_origins`              | `[]`                | origins that get CORS headers (REST, WebSocket, gRPC-Web)              |
+| `[http] public_cache`              | `false`             | immutable responses `public` instead of `private`                      |
+| `[grpc] web`                       | `false`             | also accept gRPC-Web                                                   |
+| `[ws] max_message_bytes`           | `1048576`           | largest WebSocket message; larger closes with 1009                     |
+| `[ws] max_in_flight`               | `16`                | calls one WebSocket connection may have running                        |
+| `[events] buffer`                  | `1024`              | events buffered per subscriber before it gets `Lagged`                 |
+| `[limits] max_connections`         | `1024`              | open connections per listener                                          |
+| `[limits] max_connections_per_ip`  | `64`                | open connections per client IP, per listener                           |
+| `[limits] handshake_timeout_secs`  | `10`                | TLS handshake, first bytes, each HTTP/1.1 request's headers            |
+| `[limits] http2_max_streams`       | `100`               | concurrent HTTP/2 streams (gRPC calls) per connection                  |
+| `[limits] max_subscriptions`       | `16`                | event subscriptions per key, all APIs together                         |
+| `[limits] key_max_in_flight`       | `32`                | calls to Core per key at once                                          |
+| `[limits] node_max_in_flight`      | `8`                 | calls to Core at once, all keys; below `-rpcthreads` + `-rpcworkqueue` |
+| `[limits] node_queue_secs`         | `10`                | how long a call waits for one of those                                 |
+| `[tls] cert`, `key`                | none                | PEM files; every listener serves TLS; reloaded on `SIGHUP`             |
+| `[[key]] name`                     | (required)          | shown in logs and metrics                                              |
+| `[[key]] token_sha256`             | (required)          | from `bitcoin-gateway hash-token`                                      |
+| `[[key]] allow`                    | (required)          | scopes, see above                                                      |
+| `[[key]] rate`                     | unlimited           | `{ per_second = 50, burst = 100 }`, shared by every API                |
+| `[[key]] allow_unknown`            | `false`             | an `admin` key may call methods the gateway doesn't know               |
+| `[[key]] max_in_flight`            | `key_max_in_flight` | this key's calls to Core at once                                       |
 
 ### Operations
 
@@ -1605,6 +1605,6 @@ BIP 158 filters belong on a trait (PHASE_2.md §8).
 
 ## 18. License
 
-MIT. See [`LICENSE`](LICENSE). The Cap'n Proto schemas under
+Apache License 2.0. See [`LICENSE`](LICENSE). The Cap'n Proto schemas under
 `crates/bitcoin-core-ipc/schema/` are verbatim copies from Bitcoin Core and
-libmultiprocess, also MIT.
+libmultiprocess and remain under their original MIT license.
