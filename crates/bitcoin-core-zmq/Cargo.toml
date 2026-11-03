@@ -1,0 +1,32 @@
+[package]
+name = "bitcoin-core-zmq"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Bitcoin Core ZMQ notifications as a bitcoin-node-api event stream"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "bitcoind", "zmq", "events", "async"]
+categories = ["cryptography::cryptocurrencies", "api-bindings", "asynchronous"]
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+futures-core.workspace = true
+tokio = { version = "1", features = ["sync", "rt", "time", "macros"] }
+zeromq = { version = "0.7", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
+tracing = { workspace = true, optional = true }
+
+[features]
+# Spans and events through `tracing`; never params, results or secrets.
+tracing = ["dep:tracing"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
+test-node = { path = "../test-node" }
+zeromq = { version = "0.7", default-features = false, features = ["tokio-runtime", "tcp-transport"] }
+
+[package.metadata.docs.rs]
+all-features = true

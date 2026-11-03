@@ -1,0 +1,23 @@
+[package]
+name = "bitcoin-node-ldk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "LDK's lightning-block-sync BlockSource over any bitcoin-node-api ChainSource"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "lightning", "ldk", "block-sync", "async"]
+categories = ["cryptography::cryptocurrencies"]
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+lightning-block-sync = "=0.2.0"
+
+[dev-dependencies]
+bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
+bitcoin-node-mock = { path = "../bitcoin-node-mock" }
+test-node = { path = "../test-node" }
+lightning = "0.2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

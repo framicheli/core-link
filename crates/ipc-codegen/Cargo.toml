@@ -1,0 +1,11 @@
+[package]
+name = "ipc-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Generates bitcoin-core-ipc's Rust from Core's capnp schemas; needs `capnp`"
+publish = false
+
+[dependencies]
+capnpc = "0.27"

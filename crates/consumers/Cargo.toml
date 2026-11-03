@@ -1,0 +1,22 @@
+[package]
+name = "consumers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Two consumers written against bitcoin-node-api's traits only (E4)"
+publish = false
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+futures-core.workspace = true
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+# Backends, for the binaries only: `feed` and `follower` see traits.
+bitcoin-core-ipc = { path = "../bitcoin-core-ipc" }
+bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
+bitcoin-core-zmq = { path = "../bitcoin-core-zmq" }
+
+[dev-dependencies]
+bitcoin-node-mock = { path = "../bitcoin-node-mock" }
+test-node = { path = "../test-node" }

@@ -1,0 +1,2 @@
+crates/bitcoin-core-ipc/src/generated/** linguist-generated=true
+bin/bitcoin-gateway/src/grpc/generated/** linguist-generated=true

@@ -1,0 +1,16 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "bin/*"]
+
+[workspace.package]
+version = "0.1.0"
+rust-version = "1.89"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/framicheli/bitcoin_rpc"
+
+[workspace.dependencies]
+bitcoin = { version = "0.32", features = ["serde", "base64"] }
+bitcoin-node-api = { version = "0.1.0", path = "crates/bitcoin-node-api" }
+futures-core = "0.3"
+tracing = { version = "0.1", default-features = false, features = ["std"] }

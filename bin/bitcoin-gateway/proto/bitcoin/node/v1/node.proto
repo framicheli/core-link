@@ -1,0 +1,298 @@
+// The gateway's typed API: one service per bitcoin-node-api trait, read-only
+// except Broadcast. See PHASE_2.md §4.
+//
+// Encoding, on every message:
+// - Hashes and txids are 32 bytes in internal byte order (what
+//   bitcoin::BlockHash holds; the reverse of the hex Core and explorers show).
+// - Transactions, blocks and headers are consensus-encoded bytes.
+// - Amounts are satoshis; fee rates are sat per 1000 weight units (sat/kwu),
+//   like bitcoin::FeeRate.
+// - A lookup that finds nothing is an unset optional field, not an error.
+syntax = "proto3";
+
+package bitcoin.node.v1;
+
+// ChainSource: blocks, headers, transactions, UTXOs. Scope chain:read.
+service Chain {
+  // The best block of the active chain.
+  rpc Tip(TipRequest) returns (TipReply);
+  // Hash of the active-chain block at a height.
+  rpc BlockHash(BlockHashRequest) returns (BlockHashReply);
+  // Header of a block the node knows, active chain or not, with its height
+  // and chainwork.
+  rpc Header(HashRequest) returns (HeaderReply);
+  // The block's BIP 158 basic filter; UNIMPLEMENTED if Core runs without
+  // -blockfilterindex.
+  rpc BlockFilter(HashRequest) returns (BlockFilterReply);
+  // The full block; NOT_FOUND if unknown, an error if pruned.
+  rpc Block(HashRequest) returns (BlockReply);
+  // A transaction; `block` is needed for confirmed ones unless Core runs -txindex.
+  rpc Transaction(TransactionRequest) returns (TransactionReply);
+  // An unspent output; unset `utxo` if spent or unknown.
+  rpc Utxo(UtxoRequest) returns (UtxoReply);
+}
+
+// MempoolSource. Scope mempool:read.
+service Mempool {
+  // Every txid in the mempool, in no particular order.
+  rpc Txids(TxidsRequest) returns (TxidsReply);
+  // The txids with the event sequence they match.
+  rpc Snapshot(SnapshotRequest) returns (MempoolSnapshot);
+  // One mempool entry; unset `entry` if the tx is not in the mempool.
+  rpc Entry(TxidRequest) returns (EntryReply);
+}
+
+// Broadcaster. Scope broadcast.
+service Broadcast {
+  // Submits one tx and relays it.
+  rpc Broadcast(TxRequest) returns (TxidReply);
+  // Submits a package; one result per input tx, in input order.
+  rpc BroadcastPackage(TxsRequest) returns (PackageReply);
+  // Checks txs against the mempool without submitting them.
+  rpc TestAccept(TxsRequest) returns (TestAcceptReply);
+}
+
+// FeeEstimator. Scope fees:read.
+service Fees {
+  // Unset `sat_per_kwu`: the node has no estimate yet. Not an error.
+  rpc EstimateFee(FeeTarget) returns (FeeReply);
+}
+
+// EventSource. Scope events.
+service Events {
+  // Every event from now on. Handle Lagged: resync from Chain.Tip.
+  rpc Subscribe(SubscribeRequest) returns (stream NodeEvent);
+}
+
+message TipRequest {}
+
+message TipReply {
+  // Genesis is 0.
+  uint64 height = 1;
+  // 32 bytes, internal byte order.
+  bytes hash = 2;
+}
+
+message BlockHashRequest {
+  uint64 height = 1;
+}
+
+message BlockHashReply {
+  // 32 bytes, internal byte order.
+  bytes hash = 1;
+}
+
+message HashRequest {
+  // A block hash: 32 bytes, internal byte order.
+  bytes hash = 1;
+}
+
+message HeaderReply {
+  // The 80-byte header.
+  bytes header = 1;
+  // The block's height; also set for a block off the active chain.
+  uint64 height = 2;
+  // Total work of the chain up to and including this block: 32 bytes,
+  // big-endian (Core's `chainwork`).
+  bytes chain_work = 3;
+}
+
+message BlockFilterReply {
+  // The filter: BIP 158's serialization (N, then the Golomb-coded set).
+  bytes filter = 1;
+}
+
+message BlockReply {
+  // The consensus-encoded block.
+  bytes block = 1;
+}
+
+message TransactionRequest {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+  // The block holding it, 32 bytes, if known.
+  optional bytes block = 2;
+}
+
+message TransactionReply {
+  // The consensus-encoded transaction.
+  bytes transaction = 1;
+}
+
+message UtxoRequest {
+  // The outpoint's txid: 32 bytes, internal byte order.
+  bytes txid = 1;
+  uint32 vout = 2;
+  // Also see outputs created, and spends made, by mempool txs.
+  bool include_mempool = 3;
+}
+
+message Utxo {
+  // Satoshis.
+  uint64 value = 1;
+  bytes script_pubkey = 2;
+  // 0 for an output of a mempool tx; 1 once in the tip block.
+  uint32 confirmations = 3;
+  // Created by a coinbase tx.
+  bool coinbase = 4;
+}
+
+message UtxoReply {
+  // Unset if spent or unknown.
+  optional Utxo utxo = 1;
+}
+
+message TxidsRequest {}
+
+message TxidsReply {
+  // 32 bytes each, internal byte order.
+  repeated bytes txids = 1;
+}
+
+message SnapshotRequest {}
+
+message MempoolSnapshot {
+  // 32 bytes each, internal byte order.
+  repeated bytes txids = 1;
+  // The next mempool sequence the node will assign: tx events below it are
+  // already in `txids`. Unset when the backend has none.
+  optional uint64 sequence = 2;
+}
+
+message TxidRequest {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+}
+
+message MempoolEntry {
+  // Virtual size in vbytes, sigop-adjusted.
+  uint32 vsize = 1;
+  // BIP141 weight.
+  uint64 weight = 2;
+  // The tx's own fee in satoshis.
+  uint64 fee = 3;
+  // Entry time, seconds since the epoch.
+  uint64 time = 4;
+  // Chain height at entry.
+  uint64 height = 5;
+  // In-mempool ancestors, the tx itself included.
+  uint32 ancestors = 6;
+  // In-mempool descendants, the tx itself included.
+  uint32 descendants = 7;
+}
+
+message EntryReply {
+  // Unset if the tx is not in the mempool.
+  optional MempoolEntry entry = 1;
+}
+
+message TxRequest {
+  // The consensus-encoded transaction.
+  bytes transaction = 1;
+}
+
+message TxidReply {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+}
+
+message TxsRequest {
+  // Consensus-encoded transactions.
+  repeated bytes transactions = 1;
+}
+
+message PackageResult {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+  oneof outcome {
+    // Entered the mempool.
+    Accepted accepted = 2;
+    // Was already there.
+    AlreadyInMempool already_in_mempool = 3;
+    // Not accepted: Core's reason.
+    string rejected = 4;
+  }
+}
+
+message Accepted {
+  // The tx's own fee in satoshis.
+  uint64 fee = 1;
+}
+
+message AlreadyInMempool {}
+
+message PackageReply {
+  // One per input tx, in input order.
+  repeated PackageResult results = 1;
+}
+
+message MempoolAccept {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+  bool allowed = 2;
+  // Core's reason when not allowed.
+  optional string reject_reason = 3;
+}
+
+message TestAcceptReply {
+  // One per input tx, in input order.
+  repeated MempoolAccept results = 1;
+}
+
+enum FeeMode {
+  // Treated as ECONOMICAL.
+  FEE_MODE_UNSPECIFIED = 0;
+  FEE_MODE_CONSERVATIVE = 1;
+  FEE_MODE_ECONOMICAL = 2;
+}
+
+message FeeTarget {
+  // Confirm within this many blocks (1 to 65535).
+  uint32 blocks = 1;
+  FeeMode mode = 2;
+}
+
+message FeeReply {
+  // sat per 1000 weight units; unset if the node has no estimate yet.
+  optional uint64 sat_per_kwu = 1;
+}
+
+message SubscribeRequest {}
+
+message NodeEvent {
+  oneof event {
+    BlockConnected block_connected = 1;
+    BlockDisconnected block_disconnected = 2;
+    TxAdded tx_added = 3;
+    TxRemoved tx_removed = 4;
+    // Events were lost: resync from Chain.Tip (and Mempool.Snapshot).
+    Lagged lagged = 5;
+  }
+}
+
+message BlockConnected {
+  // 32 bytes, internal byte order. May be older than your state: confirm
+  // with Chain.Tip.
+  bytes hash = 1;
+}
+
+message BlockDisconnected {
+  // 32 bytes, internal byte order.
+  bytes hash = 1;
+}
+
+message TxAdded {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+  // Core's mempool sequence, when the source has it (ZMQ).
+  optional uint64 mempool_sequence = 2;
+}
+
+message TxRemoved {
+  // 32 bytes, internal byte order.
+  bytes txid = 1;
+  // Core's mempool sequence, when the source has it (ZMQ).
+  optional uint64 mempool_sequence = 2;
+}
+
+message Lagged {}

@@ -1,0 +1,58 @@
+# Fuzz targets for the gateway's input parsing: `cargo +nightly fuzz run <target>`
+# from bin/bitcoin-gateway (see README.md here). Its own workspace: libFuzzer
+# builds need nightly and sanitizer flags the main workspace doesn't use.
+[package]
+name = "bitcoin-gateway-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+bitcoin-gateway = { path = ".." }
+bitcoin-node-mock = { path = "../../../crates/bitcoin-node-mock" }
+bitcoin-node-api = { path = "../../../crates/bitcoin-node-api" }
+tokio-util = "0.7"
+axum = { version = "0.8", default-features = false }
+http-body-util = "0.1"
+serde_json = "1"
+tokio = { version = "1", features = ["rt", "time"] }
+tower = { version = "0.5", features = ["util"] }
+
+[workspace]
+members = ["."]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "config"
+path = "fuzz_targets/config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scopes"
+path = "fuzz_targets/scopes.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ws_frame"
+path = "fuzz_targets/ws_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rest"
+path = "fuzz_targets/rest.rs"
+test = false
+doc = false
+bench = false

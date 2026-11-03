@@ -1,0 +1,25 @@
+[package]
+name = "bitcoin-node-bdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "BDK chain sync (blocks, mempool, evictions) over any bitcoin-node-api backend"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "bdk", "wallet", "sync", "async"]
+categories = ["cryptography::cryptocurrencies"]
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+bdk_core = "0.6.4"
+
+[dev-dependencies]
+bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
+bitcoin-node-mock = { path = "../bitcoin-node-mock" }
+test-node = { path = "../test-node" }
+bdk_chain = "0.23.4"
+bdk_wallet = "3.2.0"
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

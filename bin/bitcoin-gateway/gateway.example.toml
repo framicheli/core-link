@@ -1,0 +1,53 @@
+# bitcoin-gateway example config. Every section but [node] is optional.
+
+[node]
+rpc_url = "http://127.0.0.1:8332"
+cookie = "/var/lib/bitcoind/.cookie"     # or rpc_user / rpc_password
+zmq = "tcp://127.0.0.1:28332"            # optional: Core's -zmqpubsequence
+
+[listen]
+grpc = "0.0.0.0:50051"
+http = "0.0.0.0:8080"                    # REST under /v1, WebSocket at /ws
+metrics = "127.0.0.1:9100"               # keep it private
+
+[http]
+cors_origins = ["https://explorer.example"]   # empty: no CORS headers
+public_cache = false                     # true: immutable responses are `public`
+
+[grpc]
+web = false                              # true: also accept gRPC-Web
+
+[ws]
+max_message_bytes = 1048576
+max_in_flight = 16
+
+[events]
+buffer = 1024                            # events per subscriber before `Lagged`
+
+[limits]                                 # the defaults
+max_connections = 1024                   # per listener; more are closed on accept
+max_connections_per_ip = 64              # per listener
+handshake_timeout_secs = 10              # TLS handshake, first bytes, each request's headers
+http2_max_streams = 100                  # gRPC calls at once per connection
+max_subscriptions = 16                   # event streams per key (SSE, gRPC, WebSocket)
+key_max_in_flight = 32                   # calls to Core per key at once
+node_max_in_flight = 8                   # calls to Core at once, all keys: below -rpcthreads + -rpcworkqueue
+node_queue_secs = 10                     # wait for one of those, then 503 / UNAVAILABLE
+
+# Required to listen on a non-loopback address, unless started with --insecure.
+[tls]
+cert = "/etc/gateway/cert.pem"
+key = "/etc/gateway/key.pem"
+
+# Tokens are stored as SHA-256 hashes: `bitcoin-gateway hash-token` makes one.
+[[key]]
+name = "explorer"
+token_sha256 = "c0dd16e6f5ce5096d23fc66b9b44285fd4bc26cc44301f37c6973666e034bd89"
+allow = ["chain:read", "mempool:read", "fees:read", "events"]
+
+[[key]]
+name = "payments"
+token_sha256 = "e53005ca7f27f1ac5345cab4ff6f358b90d2f4c654398838512eea70a9d233b2"
+allow = ["chain:read", "broadcast", "wallet:hot:read", "wallet:hot:write"]
+rate = { per_second = 50, burst = 100 }
+max_in_flight = 8                        # its own share of calls to Core

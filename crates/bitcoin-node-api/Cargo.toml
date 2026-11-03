@@ -1,0 +1,28 @@
+[package]
+name = "bitcoin-node-api"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Capability traits for talking to a Bitcoin node"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "node", "rpc", "async", "traits"]
+categories = ["cryptography::cryptocurrencies", "api-bindings", "asynchronous"]
+
+[dependencies]
+bitcoin.workspace = true
+futures-core.workspace = true
+serde = { version = "1", features = ["derive"], optional = true }
+
+[features]
+# Serialize/Deserialize on the api types. The JSON shape is v1, frozen
+# (DESIGN.md §3.5): changing it is a breaking change.
+serde = ["dep:serde", "bitcoin/serde"]
+
+[dev-dependencies]
+serde_json = "1"
+serde = "1"
+
+[package.metadata.docs.rs]
+all-features = true

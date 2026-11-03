@@ -1,0 +1,43 @@
+# Example systemd unit. Install the binary to /usr/local/bin, the config to
+# /etc/bitcoin-gateway/gateway.toml, and add the gateway user to the group
+# that can read Core's cookie (often `bitcoin`).
+[Unit]
+Description=bitcoin-gateway: gRPC, REST and WebSocket in front of Bitcoin Core
+Documentation=https://github.com/framicheli/bitcoin_rpc
+After=network-online.target bitcoind.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=bitcoin-gateway
+Group=bitcoin
+ExecStartPre=/usr/local/bin/bitcoin-gateway -c /etc/bitcoin-gateway/gateway.toml check-config
+ExecStart=/usr/local/bin/bitcoin-gateway -c /etc/bitcoin-gateway/gateway.toml
+# SIGHUP reloads [[key]] and the TLS certificate.
+ExecReload=/bin/kill -HUP $MAINPID
+# SIGTERM drains calls in flight for up to 10 s.
+KillSignal=SIGTERM
+TimeoutStopSec=20
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+
+# Hardening: the gateway only needs the network and to read its config,
+# certificate and Core's cookie.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

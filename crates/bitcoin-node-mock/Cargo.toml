@@ -1,0 +1,20 @@
+[package]
+name = "bitcoin-node-mock"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "An in-memory Bitcoin node implementing the bitcoin-node-api traits, for tests"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "mock", "testing", "regtest", "async"]
+categories = ["cryptography::cryptocurrencies", "development-tools::testing"]
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+futures-core.workspace = true
+tokio = { version = "1", features = ["sync", "time"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

@@ -1,0 +1,52 @@
+[package]
+name = "bitcoin-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "gRPC, REST and WebSocket in front of Bitcoin Core, behind per-key permissions"
+repository.workspace = true
+readme = "README.md"
+# Shipped as release binaries and an image, not on crates.io.
+publish = false
+
+[dependencies]
+prost = "0.14"
+tonic = "0.14"
+tonic-health = "0.14"
+tonic-prost = "0.14"
+tonic-reflection = "0.14"
+tonic-web = "0.14"
+tower-http = { version = "0.6", features = ["cors"] }
+axum = { version = "0.8", default-features = false, features = ["http1", "http2", "json", "query", "tokio", "ws"] }
+bitcoin.workspace = true
+bitcoin-core-rpc = { path = "../../crates/bitcoin-core-rpc", features = ["tracing"] }
+bitcoin-core-zmq = { path = "../../crates/bitcoin-core-zmq", features = ["tracing"] }
+bitcoin-node-api = { workspace = true, features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+futures-core.workspace = true
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+getrandom = "0.4"
+hyper = "1"
+hyper-util = { version = "0.1", features = ["server-auto", "server-graceful", "service", "tokio"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+subtle = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tokio-util = "0.7"
+toml = { version = "0.9", features = ["serde"] }
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[dev-dependencies]
+test-node = { path = "../../crates/test-node" }
+openapiv3 = "2"
+prost-types = "0.14"
+tokio-tungstenite = "0.29"
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem", "ring"] }
+tokio = { version = "1", features = ["io-util"] }
+bitcoin-node-mock = { path = "../../crates/bitcoin-node-mock" }

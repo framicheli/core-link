@@ -1,0 +1,35 @@
+[package]
+name = "bitcoin-core-ipc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Bitcoin Core's mining interface over IPC (Cap'n Proto), as bitcoin-node-api traits"
+repository.workspace = true
+readme = "README.md"
+keywords = ["bitcoin", "bitcoind", "mining", "ipc", "capnproto"]
+categories = ["cryptography::cryptocurrencies", "api-bindings", "asynchronous"]
+
+[dependencies]
+bitcoin.workspace = true
+bitcoin-node-api.workspace = true
+capnp = "0.27"
+capnp-rpc = "0.27"
+futures-core.workspace = true
+futures-util = { version = "0.3", default-features = false, features = ["io"] }
+tokio = { version = "1", features = ["net", "rt", "sync", "macros", "time"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+tracing = { workspace = true, optional = true }
+
+[features]
+# Spans and events through `tracing`; never params, results or secrets.
+tracing = ["dep:tracing"]
+
+[dev-dependencies]
+futures-core.workspace = true
+bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
+test-node = { path = "../test-node" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[package.metadata.docs.rs]
+all-features = true

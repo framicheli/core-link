@@ -1,0 +1,118 @@
+name: CI
+on:
+    push:
+        branches: [main]
+    pull_request:
+jobs:
+    check:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt, clippy
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo fmt --all --check
+            - run: cargo clippy --all-targets --all-features -- -D warnings
+            - run: cargo test --all-features
+    docs:
+        # Every public item documented, intra-doc links resolve, and each
+        # published crate packages (the workspace dry-run resolves the crates'
+        # dependencies on each other locally, before any is on crates.io).
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo doc --workspace --all-features --no-deps
+              env:
+                  RUSTDOCFLAGS: -D warnings
+            - run: cargo publish --workspace --dry-run
+    codegen:
+        # The committed IPC code matches `schema/`, byte for byte. capnp versions
+        # encode schemas differently, so CI builds the one named in the committed
+        # files' headers (cached per version). Its output is only compared, never
+        # committed, so the download needs no pinned hash.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - id: version
+              run: |
+                  v=$(grep -rhoE '^// capnp binary version: [0-9.]+' crates/bitcoin-core-ipc/src/generated | sort -u)
+                  [ "$(echo "$v" | wc -l)" = 1 ] || { echo "generated files disagree on the capnp version: $v"; exit 1; }
+                  echo "capnp=${v##* }" >> "$GITHUB_OUTPUT"
+            - id: capnp
+              uses: actions/cache@v4
+              with:
+                  path: ~/capnp
+                  key: capnp-${{ steps.version.outputs.capnp }}
+            - if: steps.capnp.outputs.cache-hit != 'true'
+              run: |
+                  v=${{ steps.version.outputs.capnp }}
+                  curl -fsSL -o /tmp/capnp.tar.gz "https://github.com/capnproto/capnproto/archive/refs/tags/v$v.tar.gz"
+                  tar -xzf /tmp/capnp.tar.gz -C /tmp
+                  cmake -S "/tmp/capnproto-$v/c++" -B /tmp/capnp-build -DCMAKE_INSTALL_PREFIX=$HOME/capnp -DBUILD_TESTING=OFF
+                  cmake --build /tmp/capnp-build -j"$(nproc)" --target install
+            - run: echo "$HOME/capnp/bin" >> "$GITHUB_PATH"
+            - run: cargo run -p ipc-codegen
+            - run: git diff --exit-code -- crates/bitcoin-core-ipc/src/generated
+    grpc-codegen:
+        # The gateway's committed gRPC code matches its proto, byte for byte.
+        # protoc is vendored (protoc-bin-vendored), so Cargo.lock pins it.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo run -p grpc-codegen
+            - run: git diff --exit-code -- bin/bitcoin-gateway/src/grpc/generated
+    msrv:
+        # The workspace `rust-version`, so the promise stays true.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@1.89
+            - uses: Swatinem/rust-cache@v2
+            - run: cargo check --workspace --all-targets --all-features
+    fuzz:
+        # The gateway's fuzz targets, 30 s each: catches a regression in what it
+        # parses from clients. Longer runs are local (bin/bitcoin-gateway/fuzz).
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@nightly
+            - uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: bin/bitcoin-gateway/fuzz
+            - uses: taiki-e/install-action@v2
+              with:
+                  tool: cargo-fuzz
+            - name: Fuzz
+              working-directory: bin/bitcoin-gateway
+              run: |
+                  for t in config scopes ws_frame rest; do
+                    # The prebuilt cargo-fuzz is a musl binary and would default to musl,
+                    # which the address sanitizer can't use.
+                    cargo +nightly fuzz run --target x86_64-unknown-linux-gnu "$t" -- -max_total_time=30 -rss_limit_mb=2048
+                  done
+    live:
+        # Every typed method, the ZMQ stream and IPC (Core 30+) against real Core, one job per supported major.
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                core: ["29.5", "30.4", "31.2"]
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - uses: Swatinem/rust-cache@v2
+            - uses: actions/cache@v4
+              with:
+                  path: ~/bitcoind/${{ matrix.core }}
+                  key: bitcoind-${{ matrix.core }}-${{ hashFiles('scripts/fetch-bitcoind.sh') }}
+            - run: |
+                  exe=$(BITCOIND_DIR=~/bitcoind scripts/fetch-bitcoind.sh ${{ matrix.core }})
+                  echo "BITCOIND_EXE=$exe" >> "$GITHUB_ENV"
+            - run: cargo test --workspace --test live -- --ignored --nocapture

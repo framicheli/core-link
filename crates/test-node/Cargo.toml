@@ -1,0 +1,8 @@
+[package]
+name = "test-node"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Starts a throwaway regtest bitcoind for the live tests"
+publish = false

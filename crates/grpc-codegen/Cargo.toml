@@ -1,0 +1,12 @@
+[package]
+name = "grpc-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Generates bitcoin-gateway's gRPC code from its proto; brings its own protoc"
+publish = false
+
+[dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
