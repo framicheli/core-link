@@ -173,6 +173,24 @@ async fn mining_over_ipc() {
     };
     assert_eq!(ipc.wait_next(&t, quiet).await.unwrap(), None);
 
+    // A wait the caller gives up on (a `select!` loop moving on) must not
+    // poison the connection: its Core thread is never reused mid-call, so
+    // the calls after it answer, and the wait's template isn't leaked.
+    let forever = WaitOptions {
+        timeout: None,
+        fee_threshold: None,
+    };
+    for _ in 0..3 {
+        let gave_up = tokio::time::timeout(Duration::from_millis(50), ipc.wait_next(&t, forever));
+        assert!(
+            gave_up.await.is_err(),
+            "nothing new, so the wait was pending"
+        );
+    }
+    assert_eq!(ipc.tip().await.unwrap().height, 101);
+    assert_eq!(ipc.wait_next(&t, quiet).await.unwrap(), None);
+    assert_eq!(ipc.template().await.unwrap().height, 102);
+
     // A tx enters the mempool: wait_next sees the fee.
     let cb1 = &rpc
         .get_block(rpc.get_block_hash(1).await.unwrap())

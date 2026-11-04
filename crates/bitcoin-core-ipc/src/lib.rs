@@ -89,10 +89,20 @@ impl IpcClient {
         F: FnOnce(Rc<Conn>) -> Fut + Send + 'static,
         Fut: Future<Output = ApiResult<T>> + 'static,
     {
-        let (done, result) = oneshot::channel();
+        let (mut done, result) = oneshot::channel();
         let job: Job = Box::new(move |conn| {
             Box::pin(async move {
-                let _ = done.send(f(conn).await);
+                // The caller dropping its future drops the call with it:
+                // the Core thread it leased is never pooled mid-call, and
+                // nothing is described or registered for no one.
+                let mut out = None;
+                tokio::select! {
+                    r = f(conn) => out = Some(r),
+                    _ = done.closed() => {}
+                }
+                if let Some(r) = out {
+                    let _ = done.send(r);
+                }
             })
         });
         self.tx.send(Msg::Job(job)).map_err(|_| gone())?;

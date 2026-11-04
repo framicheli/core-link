@@ -47,23 +47,29 @@ macro_rules! shared {
             mining: mining::Client,
         }
 
-        /// A Core thread for one call; back to the pool when dropped.
+        /// A Core thread for one call. Back to the pool once the call has
+        /// answered (`done`); dropped mid-call (the caller gave up), the
+        /// thread goes with it, since Core may still be running on it.
         struct Lease<'a> {
             caps: &'a Caps,
-            thread: Option<thread::Client>,
+            thread: thread::Client,
         }
 
         impl Lease<'_> {
             fn client(&self) -> thread::Client {
-                self.thread.clone().unwrap()
+                self.thread.clone()
             }
-        }
 
-        impl Drop for Lease<'_> {
-            fn drop(&mut self) {
-                if let Some(t) = self.thread.take() {
-                    self.caps.idle.borrow_mut().push(t);
-                }
+            /// Awaits the reply, then pools the thread.
+            // ponytail: a cancelled call's thread is released, not reused;
+            // Core keeps it until the call ends (bounded by its timeout).
+            async fn done<T>(
+                self,
+                promise: impl Future<Output = capnp::Result<T>>,
+            ) -> ApiResult<T> {
+                let r = promise.await.map_err(ipc_err);
+                self.caps.idle.borrow_mut().push(self.thread);
+                r
             }
         }
 
@@ -96,17 +102,14 @@ macro_rules! shared {
                         resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?
                     }
                 };
-                Ok(Lease {
-                    caps: self,
-                    thread: Some(thread),
-                })
+                Ok(Lease { caps: self, thread })
             }
 
             pub(crate) async fn tip(&self) -> ApiResult<Option<Tip>> {
                 let mut req = self.mining.get_tip_request();
                 let th = self.lease().await?;
                 req.get().init_context().set_thread(th.client());
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 let r = resp.get().map_err(ipc_err)?;
                 if !r.get_has_result() {
                     return Ok(None);
@@ -130,7 +133,7 @@ macro_rules! shared {
                 p.set_current_tip(current.as_byte_array());
                 // Milliseconds; Core 30's schema has no default, so always set.
                 p.set_timeout(timeout.as_secs_f64() * 1000.0);
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 let b = resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?;
                 block_ref(b.get_hash().map_err(ipc_err)?, b.get_height())
             }
@@ -139,7 +142,7 @@ macro_rules! shared {
                 let mut req = t.get_block_header_request();
                 let th = self.lease().await?;
                 req.get().init_context().set_thread(th.client());
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 decode(
                     "header",
                     resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?,
@@ -153,7 +156,7 @@ macro_rules! shared {
                 let mut req = t.get_coinbase_merkle_path_request();
                 let th = self.lease().await?;
                 req.get().init_context().set_thread(th.client());
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 let list = resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?;
                 list.iter()
                     .map(|n| {
@@ -168,7 +171,7 @@ macro_rules! shared {
                 let mut req = t.get_block_request();
                 let th = self.lease().await?;
                 req.get().init_context().set_thread(th.client());
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 decode(
                     "block",
                     resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?,
@@ -181,13 +184,15 @@ macro_rules! shared {
                 t: &BlockTemplate,
             ) -> ApiResult<(Vec<i64>, Vec<i64>)> {
                 let mut fees = t.get_tx_fees_request();
-                let th = self.lease().await?;
-                fees.get().init_context().set_thread(th.client());
+                let th_fees = self.lease().await?;
+                fees.get().init_context().set_thread(th_fees.client());
                 let mut sigops = t.get_tx_sigops_request();
-                let th = self.lease().await?;
-                sigops.get().init_context().set_thread(th.client());
-                let (fees, sigops) = tokio::try_join!(fees.send().promise, sigops.send().promise)
-                    .map_err(ipc_err)?;
+                let th_sigops = self.lease().await?;
+                sigops.get().init_context().set_thread(th_sigops.client());
+                let (fees, sigops) = tokio::try_join!(
+                    th_fees.done(fees.send().promise),
+                    th_sigops.done(sigops.send().promise)
+                )?;
                 let fees = fees.get().and_then(|r| r.get_result()).map_err(ipc_err)?;
                 let sigops = sigops.get().and_then(|r| r.get_result()).map_err(ipc_err)?;
                 Ok((fees.iter().collect(), sigops.iter().collect()))
@@ -207,7 +212,7 @@ macro_rules! shared {
                 p.set_timestamp(sol.time);
                 p.set_nonce(sol.nonce);
                 p.set_coinbase(&serialize(&sol.coinbase));
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 Ok(resp.get().map_err(ipc_err)?.get_result())
             }
 
@@ -225,7 +230,7 @@ macro_rules! shared {
                 let mut o = p.init_options();
                 o.set_timeout(opts.timeout.map_or(f64::MAX, |d| d.as_secs_f64() * 1000.0));
                 o.set_fee_threshold(opts.fee_threshold.map_or(MAX_MONEY, |a| a.to_sat() as i64));
-                let resp = req.send().promise.await.map_err(ipc_err)?;
+                let resp = th.done(req.send().promise).await?;
                 let r = resp.get().map_err(ipc_err)?;
                 if !r.has_result() {
                     return Ok(None);
@@ -263,13 +268,18 @@ pub(crate) mod v30 {
         /// commitment script; reshape them into Core 31's `CoinbaseTx`.
         pub(crate) async fn coinbase(&self, t: &BlockTemplate) -> ApiResult<Parts> {
             let mut tx = t.get_coinbase_tx_request();
-            let th = self.lease().await?;
-            tx.get().init_context().set_thread(th.client());
+            let th_tx = self.lease().await?;
+            tx.get().init_context().set_thread(th_tx.client());
             let mut commitment = t.get_coinbase_commitment_request();
-            let th = self.lease().await?;
-            commitment.get().init_context().set_thread(th.client());
-            let (tx, commitment) =
-                tokio::try_join!(tx.send().promise, commitment.send().promise).map_err(ipc_err)?;
+            let th_commitment = self.lease().await?;
+            commitment
+                .get()
+                .init_context()
+                .set_thread(th_commitment.client());
+            let (tx, commitment) = tokio::try_join!(
+                th_tx.done(tx.send().promise),
+                th_commitment.done(commitment.send().promise)
+            )?;
             let tx: Transaction = decode(
                 "coinbase",
                 tx.get().and_then(|r| r.get_result()).map_err(ipc_err)?,
@@ -313,10 +323,7 @@ pub(crate) mod v31 {
             o.set_coinbase_output_max_additional_sigops(COINBASE_SIGOPS);
             let sent = req.send();
             let t = sent.pipeline.get_result();
-            let done = async move {
-                let _th = th;
-                sent.promise.await.map(drop).map_err(ipc_err)
-            };
+            let done = async move { th.done(sent.promise).await.map(drop) };
             Ok((t, done))
         }
 
@@ -324,7 +331,7 @@ pub(crate) mod v31 {
             let mut req = t.get_coinbase_tx_request();
             let th = self.lease().await?;
             req.get().init_context().set_thread(th.client());
-            let resp = req.send().promise.await.map_err(ipc_err)?;
+            let resp = th.done(req.send().promise).await?;
             let c = resp.get().and_then(|r| r.get_result()).map_err(ipc_err)?;
             let witness = c.get_witness().map_err(ipc_err)?;
             let witness = match witness.len() {

@@ -29,5 +29,10 @@ pub use tx::{
 pub type ApiResult<T> = core::result::Result<T, NodeAPIError>;
 
 /// Trait alias so trait methods read `-> impl Fut<T>`.
+///
+/// Native async-in-trait, no boxing: the traits are not `dyn`-compatible, so
+/// hold a backend as a generic (`fn run<N: ChainSource>(n: &N)`) or an enum,
+/// not a `Box<dyn ChainSource>`. An object-safe mirror can be added if a
+/// consumer needs one.
 pub trait Fut<T>: Future<Output = ApiResult<T>> + Send {}
 impl<T, F> Fut<T> for F where F: Future<Output = ApiResult<T>> + Send {}

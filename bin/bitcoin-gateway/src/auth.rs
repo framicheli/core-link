@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Instant;
 use subtle::ConstantTimeEq;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, watch};
 
 /// SHA-256 of a token, as the config stores it.
 pub fn hash_token(token: &str) -> [u8; 32] {
@@ -160,21 +160,37 @@ impl Bucket {
 }
 
 /// The keys in force; replaced whole on `SIGHUP`.
-#[derive(Debug, Default)]
-pub struct KeyStore(RwLock<Arc<Vec<Arc<Key>>>>);
+#[derive(Debug)]
+pub struct KeyStore {
+    keys: RwLock<Arc<Vec<Arc<Key>>>>,
+    /// Bumped by every `replace`.
+    reloads: watch::Sender<u64>,
+}
 
 impl KeyStore {
     /// Keys from checked config entries.
     pub fn new(specs: Vec<KeySpec>) -> KeyStore {
-        let store = KeyStore::default();
+        let store = KeyStore {
+            keys: RwLock::default(),
+            reloads: watch::Sender::new(0),
+        };
         store.replace(specs);
         store
     }
 
-    /// Swaps in a new set; requests in flight keep the key they started with.
+    /// Swaps in a new set. Requests in flight keep the key they started
+    /// with; connections that authenticated once (WebSocket) watch
+    /// [`reloaded`](KeyStore::reloaded) and close, so a revoked key can't
+    /// keep calling through them.
     pub fn replace(&self, specs: Vec<KeySpec>) {
         let keys = specs.into_iter().map(|s| Arc::new(Key::new(s))).collect();
-        *self.0.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(keys);
+        *self.keys.write().unwrap_or_else(|e| e.into_inner()) = Arc::new(keys);
+        self.reloads.send_modify(|n| *n += 1);
+    }
+
+    /// Resolves (`changed()`) on the next `replace`.
+    pub fn reloaded(&self) -> watch::Receiver<u64> {
+        self.reloads.subscribe()
     }
 
     /// The key for an `Authorization: Bearer <token>` value.
@@ -187,7 +203,7 @@ impl KeyStore {
             .filter(|t| !t.is_empty())
             .ok_or_else(ApiError::unauthenticated)?;
         let hash = hash_token(token);
-        let keys = self.0.read().unwrap_or_else(|e| e.into_inner()).clone();
+        let keys = self.keys.read().unwrap_or_else(|e| e.into_inner()).clone();
         // Every key is compared, so timing doesn't tell which one matched.
         let mut found = None;
         for k in keys.iter() {

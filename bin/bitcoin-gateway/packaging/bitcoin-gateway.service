@@ -3,7 +3,7 @@
 # that can read Core's cookie (often `bitcoin`).
 [Unit]
 Description=bitcoin-gateway: gRPC, REST and WebSocket in front of Bitcoin Core
-Documentation=https://github.com/framicheli/bitcoin_rpc
+Documentation=https://github.com/framicheli/core-link
 After=network-online.target bitcoind.service
 Wants=network-online.target
 

@@ -12,7 +12,9 @@
 //! | `-32003` | the node is unreachable                       |
 //!
 //! A message larger than `[ws] max_message_bytes` closes the connection with
-//! close code 1009 (message too big).
+//! close code 1009 (message too big). A key reload (`SIGHUP`) closes every
+//! connection with 1012 (service restart): the key was checked at upgrade,
+//! so a revoked or narrowed key must not keep calling. Reconnect.
 //!
 //! Browsers can't set `Authorization` on a WebSocket, so the token may also
 //! come as a subprotocol: `new WebSocket(url, ["bitcoin-gateway",
@@ -127,6 +129,7 @@ impl<N: Backend> Conn<N> {
         });
         let in_flight = Arc::new(Semaphore::new(gw.settings.ws.max_in_flight));
         let shutdown = gw.shutdown.clone();
+        let mut reloaded = gw.keys.reloaded();
         let conn = Arc::new(Conn {
             gw,
             key,
@@ -140,6 +143,10 @@ impl<N: Backend> Conn<N> {
                 m = stream.next() => m,
                 _ = shutdown.cancelled() => {
                     let _ = out.send(close(close_code::AWAY, "shutting down")).await;
+                    break;
+                }
+                _ = reloaded.changed() => {
+                    let _ = out.send(close(close_code::RESTART, "keys reloaded, reconnect")).await;
                     break;
                 }
             };

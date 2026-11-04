@@ -313,6 +313,36 @@ async fn upgrade_needs_a_token() {
 }
 
 #[tokio::test]
+async fn key_reload_closes_connections() {
+    let gw = start(Settings::default()).await;
+    let mut ws = connect(&gw, "/ws/wallet/hot", "pay-token").await;
+    assert_eq!(
+        call(&mut ws, rpc(1, "getbalance", json!([]))).await["result"],
+        1.5
+    );
+    // The operator revokes every key: the socket closes rather than
+    // keeping the key it authenticated with.
+    gw.gw.keys.replace(vec![]);
+    let m = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .unwrap();
+    match m {
+        Some(Ok(Message::Close(Some(f)))) => assert_eq!(f.code, CloseCode::Restart),
+        other => panic!("{other:?}"),
+    }
+    let req = format!("ws://{}/ws/wallet/hot", gw.http)
+        .into_client_request()
+        .unwrap();
+    let mut req = req;
+    req.headers_mut()
+        .insert("authorization", "Bearer pay-token".parse().unwrap());
+    match tokio_tungstenite::connect_async(req).await {
+        Err(WsError::Http(r)) => assert_eq!(r.status(), 401),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn shutdown_closes_connections() {
     let gw = start(Settings::default()).await;
     let mut ws = connect(&gw, "/ws", "reader-token").await;
