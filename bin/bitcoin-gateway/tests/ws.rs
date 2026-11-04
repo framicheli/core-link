@@ -343,6 +343,46 @@ async fn key_reload_closes_connections() {
 }
 
 #[tokio::test]
+async fn reload_between_upgrade_and_run_closes_connection() {
+    let gw = start(Settings::default()).await;
+    // Upgrade authenticates before middleware reloads the keys. The upgraded
+    // connection has not started its read loop yet, so this is the race window.
+    let reload = gw.gw.clone();
+    let app = gw.gw.http_router().layer(axum::middleware::from_fn(
+        move |req, next: axum::middleware::Next| {
+            let reload = reload.clone();
+            async move {
+                let response = next.run(req).await;
+                reload.keys.replace(vec![]);
+                response
+            }
+        },
+    ));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(bitcoin_gateway::server::serve(
+        listener,
+        app,
+        None,
+        gw.shutdown.clone(),
+    ));
+
+    let mut req = format!("ws://{addr}/ws/wallet/hot")
+        .into_client_request()
+        .unwrap();
+    req.headers_mut()
+        .insert("authorization", "Bearer pay-token".parse().unwrap());
+    let (mut ws, _) = tokio_tungstenite::connect_async(req).await.unwrap();
+    let m = tokio::time::timeout(Duration::from_secs(5), ws.next())
+        .await
+        .unwrap();
+    match m {
+        Some(Ok(Message::Close(Some(f)))) => assert_eq!(f.code, CloseCode::Restart),
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn shutdown_closes_connections() {
     let gw = start(Settings::default()).await;
     let mut ws = connect(&gw, "/ws", "reader-token").await;

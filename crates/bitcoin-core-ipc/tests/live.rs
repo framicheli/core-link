@@ -174,18 +174,20 @@ async fn mining_over_ipc() {
     assert_eq!(ipc.wait_next(&t, quiet).await.unwrap(), None);
 
     // A wait the caller gives up on (a `select!` loop moving on) must not
-    // poison the connection: its Core thread is never reused mid-call, so
-    // the calls after it answer, and the wait's template isn't leaked.
-    let forever = WaitOptions {
-        timeout: None,
+    // poison the connection: its Core thread is never reused mid-call, and
+    // each abandoned wait strands at most one 10-second slice.
+    let long = WaitOptions {
+        timeout: Some(Duration::from_secs(30)),
         fee_threshold: None,
     };
-    for _ in 0..3 {
-        let gave_up = tokio::time::timeout(Duration::from_millis(50), ipc.wait_next(&t, forever));
-        assert!(
-            gave_up.await.is_err(),
-            "nothing new, so the wait was pending"
-        );
+    for opts in [WaitOptions::default(), long] {
+        for _ in 0..3 {
+            let gave_up = tokio::time::timeout(Duration::from_millis(50), ipc.wait_next(&t, opts));
+            assert!(
+                gave_up.await.is_err(),
+                "nothing new, so the wait was pending"
+            );
+        }
     }
     assert_eq!(ipc.tip().await.unwrap().height, 101);
     assert_eq!(ipc.wait_next(&t, quiet).await.unwrap(), None);
@@ -273,13 +275,9 @@ async fn mining_over_ipc() {
         let (ipc, t) = (ipc.clone(), t.clone());
         tokio::spawn(async move {
             let next = ipc
-                .wait_next(
-                    &t,
-                    WaitOptions {
-                        timeout: Some(Duration::from_secs(30)),
-                        fee_threshold: None,
-                    },
-                )
+                // No caller timeout: internally sliced, but still pending
+                // until the submitted block makes a new template.
+                .wait_next(&t, WaitOptions::default())
                 .await;
             (next, Instant::now())
         })
@@ -290,7 +288,10 @@ async fn mining_over_ipc() {
     ipc.submit_solution(&t, &sol).await.unwrap();
     let submitted = Instant::now();
     eprintln!("submit_solution(): {:?}", submitted - start);
-    let (next, woke) = waiter.await.unwrap();
+    let (next, woke) = tokio::time::timeout(Duration::from_secs(30), waiter)
+        .await
+        .expect("wait_next did not wake after the submitted block")
+        .unwrap();
     assert!(submitted <= woke, "submit returned before the wait");
     let next = next.unwrap().expect("a template on the new tip");
     assert_eq!(rpc.get_best_block_hash().await.unwrap(), block.block_hash());

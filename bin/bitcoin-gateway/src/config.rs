@@ -285,6 +285,9 @@ impl Config {
                 "rpc_url must start with http:// or https://",
             ));
         }
+        if let Err(e) = reqwest::Url::parse(url) {
+            return Err(s.err(n.rpc_url.span(), format!("invalid rpc_url: {e}")));
+        }
         match (&n.cookie, &n.rpc_user, &n.rpc_password) {
             (Some(_), None, None) | (None, Some(_), Some(_)) => {}
             (Some(_), _, _) => {
@@ -506,6 +509,16 @@ cookie = "/tmp/.cookie"
                 "[node]\nrpc_url = \"127.0.0.1:8332\"\ncookie = \"c\"".into(),
                 2,
                 "http://",
+            ),
+            (
+                "[node]\nrpc_url = \"http://\"\ncookie = \"c\"".into(),
+                2,
+                "invalid rpc_url",
+            ),
+            (
+                "[node]\nrpc_url = \"http://bad host\"\ncookie = \"c\"".into(),
+                2,
+                "invalid rpc_url",
             ),
             (
                 "[node]\nrpc_url = \"http://h\"\nrpc_user = \"u\"".into(),

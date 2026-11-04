@@ -30,6 +30,7 @@ getrandom = "0.4"
 hyper = "1"
 hyper-util = { version = "0.1", features = ["server-auto", "server-graceful", "service", "tokio"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+reqwest = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 subtle = "2"

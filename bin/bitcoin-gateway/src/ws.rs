@@ -35,7 +35,7 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
-use tokio::sync::{Semaphore, mpsc};
+use tokio::sync::{Semaphore, mpsc, watch};
 use tokio::task::JoinHandle;
 
 /// The subprotocol the gateway answers with when the token came as one.
@@ -88,6 +88,9 @@ fn upgrade<N: Backend>(
     ws: WebSocketUpgrade,
     wallet: Option<String>,
 ) -> Response {
+    // Subscribe before authenticating: a reload between upgrade and
+    // `Conn::run` must still close this connection.
+    let reloaded = gw.keys.reloaded();
     let (auth, via_protocol) = token_from(&headers);
     let key = match gw.keys.authenticate(auth.as_deref()) {
         Ok(k) => k,
@@ -101,7 +104,7 @@ fn upgrade<N: Backend>(
     let limit = gw.settings.ws.max_message_bytes;
     ws.max_message_size(limit)
         .max_frame_size(limit)
-        .on_upgrade(move |socket| Conn::run(gw, key, wallet, socket))
+        .on_upgrade(move |socket| Conn::run(gw, key, wallet, socket, reloaded))
 }
 
 /// One connection's state.
@@ -115,7 +118,13 @@ struct Conn<N> {
 }
 
 impl<N: Backend> Conn<N> {
-    async fn run(gw: Arc<Gateway<N>>, key: Arc<Key>, wallet: Option<String>, socket: WebSocket) {
+    async fn run(
+        gw: Arc<Gateway<N>>,
+        key: Arc<Key>,
+        wallet: Option<String>,
+        socket: WebSocket,
+        mut reloaded: watch::Receiver<u64>,
+    ) {
         let (mut sink, mut stream) = socket.split();
         let (out, mut rx) = mpsc::channel::<Message>(256);
         let writer = tokio::spawn(async move {
@@ -129,7 +138,6 @@ impl<N: Backend> Conn<N> {
         });
         let in_flight = Arc::new(Semaphore::new(gw.settings.ws.max_in_flight));
         let shutdown = gw.shutdown.clone();
-        let mut reloaded = gw.keys.reloaded();
         let conn = Arc::new(Conn {
             gw,
             key,

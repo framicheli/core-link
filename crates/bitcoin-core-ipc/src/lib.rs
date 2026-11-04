@@ -52,6 +52,10 @@ use tokio::sync::{mpsc, oneshot};
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 use version::{v30, v31};
 
+/// Longest server-side wait. Dropping the caller strands at most this much
+/// work, even when the caller supplied a longer timeout or none at all.
+const WAIT_NEXT_SLICE: Duration = Duration::from_secs(10);
+
 /// Handle to the IPC worker. Clones share one connection.
 #[derive(Debug, Clone)]
 pub struct IpcClient {
@@ -466,13 +470,30 @@ impl TemplateSource for IpcClient {
 
     async fn wait_next(&self, prev: &Template, opts: WaitOptions) -> ApiResult<Option<Template>> {
         let id = self.template_id(prev)?;
+        let started = tokio::time::Instant::now();
         self.run(move |conn| async move {
-            let next = on_template!(conn, id, |c, t| {
-                c.wait_next(&t, opts).await.map(|n| n.map(Tmpl::from))
-            })?;
-            match next {
-                Some(t) => conn.describe(t).await.map(Some),
-                None => Ok(None),
+            loop {
+                let remaining = opts
+                    .timeout
+                    .map(|timeout| timeout.saturating_sub(started.elapsed()));
+                let wait_opts = WaitOptions {
+                    timeout: Some(
+                        remaining.map_or(WAIT_NEXT_SLICE, |left| left.min(WAIT_NEXT_SLICE)),
+                    ),
+                    ..opts
+                };
+                let next = on_template!(conn, id, |c, t| {
+                    c.wait_next(&t, wait_opts).await.map(|n| n.map(Tmpl::from))
+                })?;
+                match next {
+                    Some(t) => return conn.describe(t).await.map(Some),
+                    // Past the caller's deadline: done, without another
+                    // zero-length wait.
+                    None if opts.timeout.is_some_and(|t| started.elapsed() >= t) => {
+                        return Ok(None);
+                    }
+                    None => {}
+                }
             }
         })
         .await

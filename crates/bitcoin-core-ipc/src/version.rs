@@ -60,9 +60,9 @@ macro_rules! shared {
                 self.thread.clone()
             }
 
-            /// Awaits the reply, then pools the thread.
-            // ponytail: a cancelled call's thread is released, not reused;
-            // Core keeps it until the call ends (bounded by its timeout).
+            /// Awaits the reply, then pools the thread. A lease dropped
+            /// mid-call (the caller gave up) is not pooled: its thread stays
+            /// busy on Core for at most one `wait_next` slice.
             async fn done<T>(
                 self,
                 promise: impl Future<Output = capnp::Result<T>>,
@@ -228,7 +228,9 @@ macro_rules! shared {
                 p.reborrow().init_context().set_thread(th.client());
                 // Both fields always: Core 30's schema defaults them to 0.
                 let mut o = p.init_options();
-                o.set_timeout(opts.timeout.map_or(f64::MAX, |d| d.as_secs_f64() * 1000.0));
+                o.set_timeout(
+                    opts.timeout.unwrap_or(crate::WAIT_NEXT_SLICE).as_secs_f64() * 1000.0,
+                );
                 o.set_fee_threshold(opts.fee_threshold.map_or(MAX_MONEY, |a| a.to_sat() as i64));
                 let resp = th.done(req.send().promise).await?;
                 let r = resp.get().map_err(ipc_err)?;

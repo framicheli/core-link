@@ -64,6 +64,10 @@ Every IPC call names a Core-side thread in its context. Core 30 refuses a
 call on a thread that is already running one ("thread busy"), so each call
 leases an idle thread from a pool and creates a new one when all are busy.
 This is also what keeps a long `waitNext` from blocking a `submitSolution`.
+Dropping a call drops its client-side job and never returns a busy thread to
+the pool. Every `wait_next` is made of server-side waits no longer than 10
+seconds (or the caller's remaining time), so a cancelled call strands at
+most the current slice.
 
 ## Mapping to `TemplateSource`
 
