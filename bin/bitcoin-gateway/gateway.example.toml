@@ -27,7 +27,7 @@ buffer = 1024                            # events per subscriber before `Lagged`
 [limits]                                 # the defaults
 max_connections = 1024                   # per listener; more are closed on accept
 max_connections_per_ip = 64              # per listener
-handshake_timeout_secs = 10              # TLS handshake, first bytes, each request's headers
+handshake_timeout_secs = 10              # TLS handshake, first bytes, each request's headers and body
 http2_max_streams = 100                  # gRPC calls at once per connection
 max_subscriptions = 16                   # event streams per key (SSE, gRPC, WebSocket)
 key_max_in_flight = 32                   # calls to Core per key at once

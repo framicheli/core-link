@@ -28,6 +28,7 @@ use std::convert::Infallible;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio_stream::{Stream, StreamExt};
+use tower_http::timeout::RequestBodyTimeoutLayer;
 
 const OCTET: &str = "application/octet-stream";
 /// Packages can be large: 25 txs of up to 100 kvB each, hex-encoded.
@@ -738,6 +739,9 @@ pub fn openapi() -> Value {
 
 /// The REST routes.
 pub fn router<N: Backend>(gw: Arc<Gateway<N>>) -> Router {
+    // A body that stops arriving (the headers were in time) is cut off
+    // after the same timeout; response bodies (SSE) are not touched.
+    let body_timeout = std::time::Duration::from_secs(gw.settings.limits.handshake_timeout_secs);
     Router::new()
         .route("/v1/chain/tip", get(tip::<N>))
         .route("/v1/chain/heights/{height}", get(height::<N>))
@@ -756,5 +760,6 @@ pub fn router<N: Backend>(gw: Arc<Gateway<N>>) -> Router {
         .route("/v1/events", get(events::<N>))
         .route("/v1/openapi.json", get(|| async { Json(openapi()) }))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
+        .layer(RequestBodyTimeoutLayer::new(body_timeout))
         .with_state(gw)
 }

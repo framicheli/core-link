@@ -334,8 +334,9 @@ gateway or Core:
   `max_connections_per_ip` (64); more are closed on accept, before TLS, and
   counted in `gateway_connections_rejected_total`.
 - **Slow or silent clients**: a TLS handshake, a connection's first bytes,
-  and each HTTP/1.1 request's headers (an idle keep-alive connection
-  included) get `handshake_timeout_secs` (10). HTTP/2 connections are
+  each HTTP/1.1 request's headers (an idle keep-alive connection
+  included) and each REST request's body get `handshake_timeout_secs`
+  (10). HTTP/2 connections are
   pinged every 30 seconds and dropped if the answer doesn't come, and carry
   at most `http2_max_streams` (100) calls at once. Tokens are checked per
   request, so without these a client with no token could hold connections
@@ -374,7 +375,7 @@ annotated version. Every section but `[node]` is optional.
 | `[events] buffer`                  | `1024`              | events buffered per subscriber before it gets `Lagged`                 |
 | `[limits] max_connections`         | `1024`              | open connections per listener                                          |
 | `[limits] max_connections_per_ip`  | `64`                | open connections per client IP, per listener                           |
-| `[limits] handshake_timeout_secs`  | `10`                | TLS handshake, first bytes, each HTTP/1.1 request's headers            |
+| `[limits] handshake_timeout_secs`  | `10`                | TLS handshake, first bytes, each HTTP/1.1 request's headers and body   |
 | `[limits] http2_max_streams`       | `100`               | concurrent HTTP/2 streams (gRPC calls) per connection                  |
 | `[limits] max_subscriptions`       | `16`                | event subscriptions per key, all APIs together                         |
 | `[limits] key_max_in_flight`       | `32`                | calls to Core per key at once                                          |
@@ -400,15 +401,18 @@ annotated version. Every section but `[node]` is optional.
   labels.
 - **Health**: `/healthz` answers while the process is up; `/readyz` answers
   `200` only when Core answers and is out of initial block download, `503`
-  with the reason otherwise. The gateway checks every 5 seconds, and the
-  gRPC health service reports the same.
+  otherwise. The gateway checks every 5 seconds; `/readyz` and the gRPC
+  health service report that last check and never call Core themselves,
+  so the unauthenticated metrics listener can't be used to flood the node.
 - **Logs** through `tracing` (`RUST_LOG`, default `info`), with the
   library crates' `tracing` feature on, plus one line per request with the
   key name, method, outcome and duration. Never params or results.
 - **Upstream outages**: `Client` reconnects per request and ZMQ by itself;
   meanwhile calls fail with `UNAVAILABLE` / `503` / `-32003`, `/readyz`
   fails, and event streams get `Lagged` when the feed comes back. At
-  startup the gateway waits for Core (and ZMQ), retrying with backoff.
+  startup the gateway waits for Core (and ZMQ), retrying with backoff;
+  an error waiting can't fix (wrong credentials, an unsupported Core, a
+  reply it can't parse) stops it with that error instead.
 - **Packaging**: the release workflow
   ([`.github/workflows/release.yml`](../../.github/workflows/release.yml)) builds
   Linux x86_64 and aarch64 binaries on a `v*` tag, attaches them to the

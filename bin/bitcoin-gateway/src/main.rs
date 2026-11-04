@@ -6,6 +6,7 @@ use bitcoin_gateway::config::{Config, ConfigError};
 use bitcoin_gateway::node::{Events, Node, Upstream};
 use bitcoin_gateway::server::{Tls, check_listen, serve_with};
 use bitcoin_gateway::{Gateway, Settings, auth};
+use bitcoin_node_api::{NodeAPIError, RpcErrorCode, TransportError};
 use clap::{Parser, Subcommand};
 use std::collections::HashSet;
 use std::net::SocketAddr;
@@ -133,7 +134,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         _ => unreachable!("Config::parse checked [node]"),
     };
     let builder = || Client::builder(n.rpc_url.get_ref()).auth(auth.clone());
-    let Some(client) = retry("node", &shutdown, || builder().connect()).await else {
+    let Some(client) = retry("node", &shutdown, || builder().connect()).await? else {
         return Ok(());
     };
     tracing::info!(version = client.version().0, "connected to Core");
@@ -141,7 +142,7 @@ async fn run(cli: Cli) -> Result<(), String> {
         Some(z) => {
             let z = z.get_ref();
             let Some(zmq) =
-                retry("zmq", &shutdown, || ZmqEvents::connect(z, Topic::Sequence)).await
+                retry("zmq", &shutdown, || ZmqEvents::connect(z, Topic::Sequence)).await?
             else {
                 return Ok(());
             };
@@ -240,8 +241,13 @@ fn located(path: &Path, e: &ConfigError) -> String {
     }
 }
 
-/// Retries `f` with backoff until it succeeds or shutdown; `None` on shutdown.
-async fn retry<T, F, Fut>(what: &str, shutdown: &CancellationToken, mut f: F) -> Option<T>
+/// Retries `f` with backoff until it succeeds (`Some`) or shutdown (`None`).
+/// An error waiting can't fix ([`permanent`]) is returned at once.
+async fn retry<T, F, Fut>(
+    what: &str,
+    shutdown: &CancellationToken,
+    mut f: F,
+) -> Result<Option<T>, String>
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = bitcoin_node_api::ApiResult<T>>,
@@ -249,14 +255,28 @@ where
     let mut wait = Duration::from_millis(500);
     loop {
         match f().await {
-            Ok(v) => return Some(v),
+            Ok(v) => return Ok(Some(v)),
+            Err(e) if permanent(&e) => return Err(format!("{what}: {e}")),
             Err(e) => tracing::warn!(error = %e, retry_in = ?wait, "can't reach {what}"),
         }
         tokio::select! {
             _ = tokio::time::sleep(wait) => {}
-            _ = shutdown.cancelled() => return None,
+            _ = shutdown.cancelled() => return Ok(None),
         }
         wait = (wait * 2).min(Duration::from_secs(30));
+    }
+}
+
+/// Whether a startup error is a configuration or compatibility problem
+/// rather than an outage: bad credentials, an RPC error other than warmup
+/// (a `-rpcwhitelist`, say), a reply the client can't parse, an
+/// unsupported Core. Connection, timeout and HTTP failures are outages.
+fn permanent(e: &NodeAPIError) -> bool {
+    match e {
+        NodeAPIError::Transport(t) => matches!(t, TransportError::Auth),
+        NodeAPIError::Rpc { code, .. } => *code != RpcErrorCode::InWarmup,
+        NodeAPIError::Decode(_) | NodeAPIError::Unsupported(_) => true,
+        _ => false,
     }
 }
 
@@ -297,4 +317,34 @@ async fn reload_keys(
         .await
         .map_err(|e| located(path, &e))?;
     config.key_specs(&src).map_err(|e| located(path, &e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_outages_are_retried() {
+        let rpc = |code: i64| NodeAPIError::Rpc {
+            code: code.into(),
+            message: String::new(),
+        };
+        for e in [
+            TransportError::Connect("refused".into()).into(),
+            TransportError::Timeout.into(),
+            TransportError::Http(502).into(),
+            TransportError::Other("reset".into()).into(),
+            rpc(-28),
+        ] {
+            assert!(!permanent(&e), "{e}");
+        }
+        for e in [
+            TransportError::Auth.into(),
+            rpc(-32601),
+            NodeAPIError::Decode("not json".into()),
+            NodeAPIError::Unsupported("Core 27".into()),
+        ] {
+            assert!(permanent(&e), "{e}");
+        }
+    }
 }

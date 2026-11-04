@@ -211,9 +211,15 @@ impl<N: Backend> Gateway<N> {
             .route(
                 "/readyz",
                 get(move || async move {
-                    match ready.check_ready().await {
-                        Ok(()) => (StatusCode::OK, "ready\n".to_owned()),
-                        Err(e) => (StatusCode::SERVICE_UNAVAILABLE, format!("{e}\n")),
+                    // The last check, never a call: this listener is
+                    // unauthenticated and skips the call limits.
+                    if *ready.health.borrow() {
+                        (StatusCode::OK, "ready\n")
+                    } else {
+                        (
+                            StatusCode::SERVICE_UNAVAILABLE,
+                            "not ready: Core unreachable or in initial block download\n",
+                        )
                     }
                 }),
             )

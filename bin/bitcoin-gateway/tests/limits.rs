@@ -122,6 +122,25 @@ async fn silent_slow_and_idle_clients_are_closed() {
     }
 }
 
+#[tokio::test]
+async fn stalled_request_bodies_are_closed() {
+    let gw = gateway(LimitsConfig {
+        handshake_timeout_secs: 1,
+        ..LimitsConfig::default()
+    })
+    .await;
+    // Valid headers and a token, then a body that never finishes.
+    let mut conn = TcpStream::connect(gw.http).await.unwrap();
+    conn.write_all(
+        b"POST /v1/tx HTTP/1.1\r\nhost: x\r\nauthorization: Bearer root-token\r\n\
+          content-type: application/json\r\ncontent-length: 64\r\n\r\n{\"hex\": \"",
+    )
+    .await
+    .unwrap();
+    let t = closed_after(&mut conn).await;
+    assert!(t >= Duration::from_millis(900), "{t:?}");
+}
+
 fn settings(l: LimitsConfig) -> Settings {
     Settings {
         limits: l,
@@ -187,11 +206,16 @@ async fn calls_in_flight_per_key_and_per_node() {
     assert_eq!(s, 503, "{v}");
     assert!(start.elapsed() >= Duration::from_millis(900));
 
-    // Readiness doesn't need a slot.
+    // Readiness doesn't need a slot: it reports the last check, never calls.
     let ready = reqwest::get(format!("http://{}/readyz", gw.metrics))
         .await
         .unwrap();
     assert_eq!(ready.status(), 200);
+    gw.gw.health.send_replace(false);
+    let ready = reqwest::get(format!("http://{}/readyz", gw.metrics))
+        .await
+        .unwrap();
+    assert_eq!(ready.status(), 503);
     let m = reqwest::get(format!("http://{}/metrics", gw.metrics))
         .await
         .unwrap()
