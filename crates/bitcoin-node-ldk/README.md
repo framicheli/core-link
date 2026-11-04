@@ -41,4 +41,4 @@ hint isn't needed.
 Example: `cargo run -p bitcoin-node-ldk --example spv` (on the mock), or
 `-- http://127.0.0.1:8332 user pass` to follow a Core node.
 
-License: MIT.
+License: Apache-2.0.

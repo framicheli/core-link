@@ -57,4 +57,4 @@ the wallet sees are `bdk_core::bitcoin`'s and the backend's are
 `bitcoin_node_api::bitcoin`'s, converted at the boundary, so the two can pin
 different `bitcoin` versions.
 
-License: MIT.
+License: Apache-2.0.

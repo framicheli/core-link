@@ -35,4 +35,4 @@ Adapters: [`bitcoin-node-ldk`](https://crates.io/crates/bitcoin-node-ldk)
 [`bitcoin-node-bdk`](https://crates.io/crates/bitcoin-node-bdk) (BDK chain
 sync). Design and rationale: the [repository README](https://github.com/framicheli/core-link).
 
-License: MIT.
+License: Apache-2.0.

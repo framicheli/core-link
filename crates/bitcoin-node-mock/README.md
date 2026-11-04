@@ -24,4 +24,4 @@ replacement, `wait_next` waking on a new tip or mempool change. It is a test
 double, not a node: scripts, amounts and consensus rules are not checked;
 `submit_solution` checks only the header and its proof of work.
 
-License: MIT.
+License: Apache-2.0.

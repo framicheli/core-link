@@ -33,4 +33,4 @@ kind), never params or results.
 
 More: the [repository README](https://github.com/framicheli/core-link).
 
-License: MIT.
+License: Apache-2.0.

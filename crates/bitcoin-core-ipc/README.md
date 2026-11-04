@@ -20,4 +20,4 @@ Feature `tracing`: connect, protocol picked, Core threads created.
 
 More: the [repository README](https://github.com/framicheli/core-link).
 
-License: MIT.
+License: Apache-2.0.
