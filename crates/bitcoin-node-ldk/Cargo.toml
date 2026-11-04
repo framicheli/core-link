@@ -11,13 +11,14 @@ keywords = ["bitcoin", "lightning", "ldk", "block-sync", "async"]
 categories = ["cryptography::cryptocurrencies"]
 
 [dependencies]
-bitcoin.workspace = true
 bitcoin-node-api.workspace = true
 lightning-block-sync = "=0.2.0"
+# For `lightning::bitcoin`: LDK's own `bitcoin`, whatever version it pins.
+lightning = "0.2"
 
 [dev-dependencies]
+bitcoin.workspace = true
 bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
 bitcoin-node-mock = { path = "../bitcoin-node-mock" }
 test-node = { path = "../test-node" }
-lightning = "0.2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

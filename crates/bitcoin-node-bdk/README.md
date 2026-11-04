@@ -52,7 +52,9 @@ while let Some(ev) = iter.next().await? {
 }
 ```
 
-Built against `bdk_core` 0.6 (`bdk_wallet` 3.x, `bdk_chain` 0.23), `bitcoin`
-0.32.
+Built against `bdk_core` 0.6 (`bdk_wallet` 3.x, `bdk_chain` 0.23). The types
+the wallet sees are `bdk_core::bitcoin`'s and the backend's are
+`bitcoin_node_api::bitcoin`'s, converted at the boundary, so the two can pin
+different `bitcoin` versions.
 
 License: MIT.

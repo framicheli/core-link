@@ -1,5 +1,5 @@
 //! REST under `/v1`: hand-written routes over the same [`api`](crate::api)
-//! handlers as gRPC (PHASE_2.md §4.4–4.6).
+//! handlers as gRPC.
 //!
 //! JSON by default, in the api crate's `serde` shape: hashes as hex in
 //! display order, transactions as consensus hex, amounts in satoshis.

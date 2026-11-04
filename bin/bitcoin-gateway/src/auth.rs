@@ -1,7 +1,7 @@
 //! Bearer tokens, keys, scope checks and per-key rate limits.
 //!
 //! Tokens are 256-bit random values; the config holds only their SHA-256
-//! (PHASE_2.md §1.1). A presented token is hashed and compared against every
+//!. A presented token is hashed and compared against every
 //! key's hash in constant time.
 use crate::config::{KeySpec, Rate};
 use crate::error::ApiError;

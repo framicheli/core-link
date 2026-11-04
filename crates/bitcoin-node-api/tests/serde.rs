@@ -225,7 +225,7 @@ fn mining_types() {
     assert_eq!(json["height"], json!(1));
 }
 
-/// v1 (frozen, DESIGN.md §3.5): the exact JSON the gateway's REST and
+/// v1 (frozen): the exact JSON the gateway's REST and
 /// WebSocket clients get for every type that was only round-tripped above.
 #[test]
 fn v1_frozen_shapes() {

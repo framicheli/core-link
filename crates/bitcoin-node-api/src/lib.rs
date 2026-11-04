@@ -2,8 +2,7 @@
 //!
 //! Feature `serde`: `Serialize`/`Deserialize` on the api types (`Template` is
 //! `Serialize` only). The JSON shape is v1, frozen: the gateway's REST and
-//! WebSocket clients see it, so changing it is a breaking change. See
-//! DESIGN.md §3.5.
+//! WebSocket clients see it, so changing it is a breaking change.
 #![warn(missing_docs)]
 pub mod chain;
 pub mod error;

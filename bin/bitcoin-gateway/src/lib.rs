@@ -1,6 +1,5 @@
 //! `bitcoin-gateway`: gRPC, REST and WebSocket in front of Bitcoin Core,
-//! behind per-key permissions. See PHASE_2.md and the README's gateway
-//! section.
+//! behind per-key permissions. See the README's gateway section.
 //!
 //! The binary is `main.rs`; this library holds everything else so the
 //! integration tests can run the gateway in-process against

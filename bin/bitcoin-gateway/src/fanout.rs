@@ -1,4 +1,4 @@
-//! One upstream event subscription, copied to every client (PHASE_2.md §2.3).
+//! One upstream event subscription, copied to every client.
 //!
 //! Without it, every subscriber would open its own ZMQ socket or hold one of
 //! Core's `rpcthreads` with its own `waitfornewblock` poll.

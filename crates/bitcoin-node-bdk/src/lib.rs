@@ -45,6 +45,14 @@
 //! Compact block filter sync, fetching only the blocks that may touch the
 //! wallet, is [`bip158::FilterIter`].
 //!
+//! # Two `bitcoin`s
+//!
+//! Types the wallet sees (blocks, transactions, txids, scripts, `BlockId`)
+//! are `bdk_core::bitcoin`'s; the backend underneath uses
+//! `bitcoin_node_api::bitcoin`. They are one crate today and are converted
+//! at the boundary either way, so BDK and `bitcoin-node-api` can move to a
+//! new `bitcoin` independently.
+//!
 //! # Errors
 //!
 //! Every method returns the backend's [`NodeAPIError`]. A transaction that
@@ -56,13 +64,16 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use bdk_core::bitcoin::{Block, BlockHash, Transaction, Txid};
 use bdk_core::{BlockId, CheckPoint};
-use bitcoin::{Block, BlockHash, Transaction, Txid};
-use bitcoin_node_api::{ApiResult, ChainSource, MempoolSource, NodeAPIError, RpcErrorCode};
+use bitcoin_node_api::{
+    ApiResult, ChainSource, MempoolSource, NodeAPIError, RpcErrorCode, bitcoin,
+};
 
 pub use bdk_core;
 
 pub mod bip158;
+mod convert;
 
 /// Emits the best chain's blocks and the mempool from a [`ChainSource`] (and
 /// a [`MempoolSource`] for [`mempool`](Emitter::mempool)), connected to the
@@ -79,7 +90,7 @@ pub struct Emitter<C> {
     last_block: Option<BlockId>,
     /// The mempool as last emitted, minus confirmed transactions: what an
     /// eviction is measured against, and a cache of transactions.
-    mempool_snapshot: HashMap<Txid, Arc<Transaction>>,
+    mempool_snapshot: HashMap<bitcoin::Txid, Arc<Transaction>>,
 }
 
 /// No unconfirmed transactions to start with, for [`Emitter::new`].
@@ -105,7 +116,7 @@ impl<C> Emitter<C> {
                 .into_iter()
                 .map(|tx| {
                     let tx: Arc<Transaction> = tx.into();
-                    (tx.compute_txid(), tx)
+                    (convert::txid_in(tx.compute_txid()), tx)
                 })
                 .collect(),
         }
@@ -177,7 +188,8 @@ impl<C: ChainSource + Sync> Emitter<C> {
                     self.last_block = Some(id);
                     // Confirmed: no longer a candidate for eviction.
                     for tx in &block.txdata {
-                        self.mempool_snapshot.remove(&tx.compute_txid());
+                        self.mempool_snapshot
+                            .remove(&convert::txid_in(tx.compute_txid()));
                     }
                     return Ok(Some(BlockEvent { block, checkpoint }));
                 }
@@ -215,7 +227,7 @@ impl<C: ChainSource + Sync> Emitter<C> {
                     return Ok(Poll::Agreement(cp));
                 }
             }
-            return Ok(Poll::NoAgreement(c.block_hash(0).await?));
+            return Ok(Poll::NoAgreement(convert::hash_out(c.block_hash(0).await?)));
         };
         let jump = last.height + 1 < self.start_height;
         let height = if jump {
@@ -245,10 +257,14 @@ impl<C: ChainSource + Sync> Emitter<C> {
             Err(e) if not_found(&e) => return Ok(Poll::NotInBestChain),
             Err(e) => return Err(e),
         };
-        if !jump && block.header.prev_blockhash != last.hash {
+        if !jump && block.header.prev_blockhash != convert::hash_in(last.hash) {
             return Ok(Poll::NotInBestChain);
         }
-        Ok(Poll::Block(BlockId { height, hash }, block))
+        let id = BlockId {
+            height,
+            hash: convert::hash_out(hash),
+        };
+        Ok(Poll::Block(id, convert::block(block)?))
     }
 
     async fn on_best_chain(&self, id: BlockId) -> ApiResult<bool> {
@@ -259,7 +275,7 @@ impl<C: ChainSource + Sync> Emitter<C> {
 /// `id` is the best chain's block at its height.
 async fn on_best_chain<C: ChainSource>(chain: &C, id: BlockId) -> ApiResult<bool> {
     match chain.block_hash(u64::from(id.height)).await {
-        Ok(h) => Ok(h == id.hash),
+        Ok(h) => Ok(h == convert::hash_in(id.hash)),
         Err(e) if above_tip(&e) => Ok(false),
         Err(e) => Err(e),
     }
@@ -298,7 +314,7 @@ impl<C: ChainSource + MempoolSource + Sync> Emitter<C> {
                 Some(tx) => tx.clone(),
                 None => match c.transaction(*txid, None).await {
                     Ok(tx) => {
-                        let tx = Arc::new(tx);
+                        let tx = Arc::new(convert::tx(tx)?);
                         self.mempool_snapshot.insert(*txid, tx.clone());
                         tx
                     }
@@ -309,20 +325,20 @@ impl<C: ChainSource + MempoolSource + Sync> Emitter<C> {
             };
             update.push((tx, sync_time));
         }
-        let at_tip =
-            tip.height == u64::from(self.last_cp.height()) && tip.hash == self.last_cp.hash();
+        let at_tip = tip.height == u64::from(self.last_cp.height())
+            && tip.hash == convert::hash_in(self.last_cp.hash());
         let mut evicted = Vec::new();
         if at_tip {
-            let now: HashSet<Txid> = txids.into_iter().collect();
+            let now: HashSet<bitcoin::Txid> = txids.into_iter().collect();
             evicted = self
                 .mempool_snapshot
                 .keys()
                 .filter(|t| !now.contains(*t))
-                .map(|t| (*t, sync_time))
+                .map(|t| (convert::txid_out(*t), sync_time))
                 .collect();
             self.mempool_snapshot = update
                 .iter()
-                .map(|(tx, _)| (tx.compute_txid(), tx.clone()))
+                .map(|(tx, _)| (convert::txid_in(tx.compute_txid()), tx.clone()))
                 .collect();
         }
         Ok(MempoolEvent { update, evicted })

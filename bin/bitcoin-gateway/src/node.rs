@@ -1,4 +1,4 @@
-//! The composite backend (PHASE_2.md §2.2): `Client` serves everything but
+//! The composite backend: `Client` serves everything but
 //! events, which come from ZMQ when it's configured.
 //!
 //! An enum, not `Box<dyn ...>`: the backends are known at compile time and

@@ -1,7 +1,6 @@
 //! Two consumers of `bitcoin-node-api`, written against its traits only:
 //! `feed` (a miner's loop) and `follower` (chain and mempool following).
-//! The binaries pick backends; this code never names one. What they needed
-//! from the traits is in DESIGN.md §3.3.
+//! The binaries pick backends; this code never names one.
 pub mod feed;
 pub mod follower;
 

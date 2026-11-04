@@ -19,7 +19,9 @@ spv.poll_best_tip().await?;
 ```
 
 Built against `lightning-block-sync` 0.2.0 (re-exported as
-`bitcoin_node_ldk::lightning_block_sync`), `bitcoin` 0.32.
+`bitcoin_node_ldk::lightning_block_sync`). The types LDK sees are
+`lightning::bitcoin`'s and the backend's are `bitcoin_node_api::bitcoin`'s,
+converted at the boundary, so the two can pin different `bitcoin` versions.
 
 | `BlockSource`    | `ChainSource`                                                  |
 | ---------------- | -------------------------------------------------------------- |

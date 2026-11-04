@@ -118,7 +118,7 @@ JSON-RPC, ZMQ, IPC, a mock, or (later) a remote gateway.
 - A protobuf message per Core RPC in the gateway (a large, version-drifting
   surface for unclear demand). gRPC will expose the traits only.
 - Other node implementations (btcd, Knots, …) until a real user needs them.
-- Core < 28. `corepc-types` goes back to v17, so widening is cheap if asked.
+- Core < 29. `corepc-types` goes back to v17, so widening is cheap if asked.
 - Legacy (BDB) wallets. Only descriptor wallets get typed methods; the 12
   legacy-only RPCs remain reachable through `Client::raw_call`.
 
@@ -195,8 +195,7 @@ why those belong in a separate gateway process (see
 - **Layer 1, `Client`** is complete and Core-shaped. Every public RPC is a
   typed async method named after the RPC. This is what you reach for when
   you know Core and want Core.
-- **Layer 2, the traits** are small and backend-agnostic (about 17 methods,
-  built from the RPCs marked `core` in [`RpcInventory.md`](RpcInventory.md)).
+- **Layer 2, the traits** are small and backend-agnostic (about 17 methods).
   This is what libraries program against, so they can swap `Client` for
   IPC, ZMQ, a mock, or a remote gateway.
 
@@ -216,12 +215,8 @@ ZMQ for events, and IPC for templates when the node is Core 30+.
 ## 4. Workspace layout
 
 ```
-bitcoin_rpc/
+core-link/
 ├── Cargo.toml              virtual workspace; shared deps and package metadata
-├── DESIGN.md               the full design, with decisions and findings
-├── PHASE_2.md              the gateway's plan, and the LDK adapter's
-├── RpcInventory.md         every Core 31 RPC, classified core / typed / ?
-├── CHANGELOG.md            changes to the published crates
 ├── scripts/
 │   └── fetch-bitcoind.sh   downloads a pinned, hash-checked Core release
 ├── .github/workflows/      ci.yml on every push and PR, release.yml on v* tags
@@ -249,7 +244,11 @@ Rules the workspace follows, and why:
 - **Backends depend on the api crate, never on each other.** Live tests
   may dev-depend on `bitcoin-core-rpc` to drive the node.
 - **`bitcoin = "0.32"`** is pinned once in `[workspace.dependencies]`,
-  matching `corepc-types 0.16`. The two are bumped together.
+  matching `corepc-types 0.16`. The two are bumped together. The LDK and
+  BDK adapters are the exception: they use `lightning::bitcoin` and
+  `bdk_core::bitcoin` on their ecosystem's side and convert at the boundary
+  (a move while the versions match, a consensus re-encode when they don't),
+  so LDK, BDK and this workspace can each bump `bitcoin` on their own.
 - **Edition 2024, `rust-version = 1.89`** (the floor set by `zeromq` 0.7).
   A CI job checks that promise stays true.
 - **Every public type derives `Debug, Clone, PartialEq, Eq`**, small ones
@@ -265,8 +264,8 @@ The crates are not published yet; depend on them by git:
 
 ```toml
 [dependencies]
-bitcoin-core-rpc = { git = "https://github.com/framicheli/bitcoin_rpc" }
-bitcoin-node-api = { git = "https://github.com/framicheli/bitcoin_rpc" }
+bitcoin-core-rpc = { git = "https://github.com/framicheli/core-link" }
+bitcoin-node-api = { git = "https://github.com/framicheli/core-link" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -288,7 +287,7 @@ async fn main() -> bitcoin_node_api::ApiResult<()> {
 ```
 
 `Client::connect` runs `getnetworkinfo` once to learn the Core version, and
-fails fast on a bad URL, bad credentials, or a Core older than 28.
+fails fast on a bad URL, bad credentials, or a Core older than 29.
 
 For anything beyond URL and auth, use the builder:
 
@@ -535,7 +534,7 @@ are tagged `{"type": "snake_case_variant", ...}`; hashes, scripts and
 transactions are hex; amounts are satoshis. `Template` is `Serialize` only,
 since its token is a live backend handle. **The JSON shape is v1 and
 frozen**: the gateway's REST and WebSocket clients see it, so changing it is
-a breaking change (DESIGN.md §3.5).
+a breaking change.
 
 ---
 
@@ -644,7 +643,7 @@ pub enum Feature { SubmitPackage, ClusterMempool, PrivateBroadcast, TxVersionArg
 
 Methods that exist only on some versions check `supports()` and return
 `NodeAPIError::Unsupported("… needs Core 31+")` instead of letting Core
-answer with a bare "method not found". `connect` rejects Core < 28 with
+answer with a bare "method not found". `connect` rejects Core < 29 with
 `Unsupported`. A `Feature` is only added when a method actually branches on it.
 
 ### Wallets
@@ -886,8 +885,7 @@ named.
     ```
 
 Both run live on Core 29–31, with templates over RPC and IPC and events over
-ZMQ and RPC polling. What they exposed fed back into the API (stage E4,
-detailed in `DESIGN.md` §3.3 "E4 findings"):
+ZMQ and RPC polling. What they exposed fed back into the API (stage E4):
 
 1. Building the block from a `Template` was everyone's job → pure helpers
    `coinbase_tx`, `merkle_root`, `header` on `Template`.
@@ -1126,13 +1124,13 @@ ipc-codegen`, wire it into `version.rs`, commit the generated code.
 
 ## 15. How the project was built
 
-The work was planned in [`DESIGN.md`](DESIGN.md) and carried out in stages,
+The work was planned up front and carried out in stages,
 each one a pull request, with the rule that the trait layer should become
 usable early so the other backends could start.
 
 | Stage | What                                                                                                                                                    |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| —     | Research: why the library should exist, prior art, the full RPC inventory (`RpcInventory.md`)                                                           |
+| —     | Research: why the library should exist, prior art, the full RPC inventory                                                                              |
 | A     | Foundation: CI, error types, `Client`/`Auth`/`Version`/`Feature`, the fake bitcoind and fixtures                                                        |
 | B     | The `core` methods: every trait implemented over RPC, including the shared GBT longpoll                                                                 |
 | C     | Typed methods by section (blockchain, mining, network, control, zmq, raw tx, util, signer, regtest), then live tests against Core 31 with record/replay |
@@ -1177,8 +1175,7 @@ the live runs taught:
 `bitcoind` speaks JSON-RPC, REST, ZMQ and IPC, not gRPC or WebSocket. The
 gateway is one binary built on these crates: it talks to Core on one side
 and serves gRPC, REST and WebSocket on the other, behind per-key
-permissions, so port 8332 stays private. The full plan is
-[`PHASE_2.md`](PHASE_2.md).
+permissions, so port 8332 stays private.
 
 Library before gateway: wallets, Lightning nodes and pools embed the
 library. The gateway is for those that can't or won't: other languages,
@@ -1586,19 +1583,12 @@ docker run -v ./gateway.toml:/etc/bitcoin-gateway/gateway.toml:ro \
 
 Still open outside the gateway: proposing `bitcoin-core-rpc` to the
 rust-bitcoin `corepc` maintainers, the first crates.io release, and whether
-BIP 158 filters belong on a trait (PHASE_2.md §8).
+BIP 158 filters belong on a trait.
 
 ---
 
 ## 17. Further reading
 
-- [`DESIGN.md`](DESIGN.md): the complete design, every decision with its
-  reason, and the findings from each stage.
-- [`PHASE_2.md`](PHASE_2.md): the gateway's and the LDK adapter's plan,
-  stage by stage.
-- [`CHANGELOG.md`](CHANGELOG.md): what changed in the published crates.
-- [`RpcInventory.md`](RpcInventory.md): every Core 31 RPC by section,
-  classified `core` (backs a trait), `typed` (Core-specific) or `?`.
 - Crate-level docs: `cargo doc --workspace --no-deps --open`.
 
 ---

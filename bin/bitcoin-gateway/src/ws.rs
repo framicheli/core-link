@@ -1,6 +1,6 @@
 //! WebSocket at `/ws` and `/ws/wallet/<name>`: Core's JSON-RPC passed
 //! through, filtered by the key's scopes, plus `events.subscribe`
-//! (PHASE_2.md §5).
+//!.
 //!
 //! Method names, params, results and errors are Core's, unchanged. Errors
 //! the gateway adds use JSON-RPC's server range:

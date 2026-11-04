@@ -2,7 +2,7 @@
 //!
 //! The class of a method (read, idempotent, write) is `bitcoin-core-rpc`'s
 //! table ([`method_class`]); this module adds the area. A method in neither
-//! table is denied (PHASE_2.md §3.3).
+//! table is denied.
 use bitcoin_core_rpc::{MethodClass, method_class};
 use std::fmt;
 

@@ -1,4 +1,4 @@
-//! JSON shapes behind the `serde` feature: v1, frozen (DESIGN.md §3.5). The
+//! JSON shapes behind the `serde` feature: v1, frozen. The
 //! gateway's REST and WebSocket clients see them; `tests/serde.rs` pins them.
 //!
 //! Enums are `{"type": "snake_case_variant", ...fields}`. serde can't put a tag

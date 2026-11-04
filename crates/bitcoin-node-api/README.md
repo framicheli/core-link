@@ -33,6 +33,6 @@ Implementations: [`bitcoin-core-rpc`](https://crates.io/crates/bitcoin-core-rpc)
 Adapters: [`bitcoin-node-ldk`](https://crates.io/crates/bitcoin-node-ldk)
 (LDK's `BlockSource` over any `ChainSource`),
 [`bitcoin-node-bdk`](https://crates.io/crates/bitcoin-node-bdk) (BDK chain
-sync). Design and rationale: the [repository README](https://github.com/framicheli/bitcoin_rpc).
+sync). Design and rationale: the [repository README](https://github.com/framicheli/core-link).
 
 License: MIT.

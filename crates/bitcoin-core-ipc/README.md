@@ -18,6 +18,6 @@ Speaks the Core 30 and Core 31 protocols (picked on connect). The
 generated Cap'n Proto code is committed: no `capnp` binary needed to build.
 Feature `tracing`: connect, protocol picked, Core threads created.
 
-More: the [repository README](https://github.com/framicheli/bitcoin_rpc).
+More: the [repository README](https://github.com/framicheli/core-link).
 
 License: MIT.

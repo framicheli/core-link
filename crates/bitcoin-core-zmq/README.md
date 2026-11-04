@@ -18,6 +18,6 @@ let mut events = zmq.subscribe().await?;
 Pure Rust (`zeromq`), no libzmq. Feature `tracing`: connect, disconnect
 and each `Lagged` with its cause.
 
-More: the [repository README](https://github.com/framicheli/bitcoin_rpc).
+More: the [repository README](https://github.com/framicheli/core-link).
 
 License: MIT.

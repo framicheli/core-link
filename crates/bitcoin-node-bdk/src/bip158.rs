@@ -29,9 +29,10 @@
 //! [BIP 157]: https://github.com/bitcoin/bips/blob/master/bip-0157.mediawiki
 //! [BIP 158]: https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
 
+use crate::convert;
+use bdk_core::bitcoin::{Block, ScriptBuf};
 use bdk_core::{BlockId, CheckPoint};
-use bitcoin::{Block, ScriptBuf};
-use bitcoin_node_api::{ChainSource, NodeAPIError};
+use bitcoin_node_api::{ChainSource, NodeAPIError, bitcoin};
 use core::fmt;
 
 /// Walks the best chain from a checkpoint, block by block, fetching only
@@ -172,7 +173,7 @@ impl<C: ChainSource + Sync> FilterIter<C> {
                 Err(e) if crate::not_found(&e) => continue, // raced a reorg
                 Err(e) => return Err(e.into()),
             };
-            if header.prev_blockhash != base.hash {
+            if header.prev_blockhash != convert::hash_in(base.hash) {
                 self.last = None; // `base` was reorged out
                 continue;
             }
@@ -182,11 +183,14 @@ impl<C: ChainSource + Sync> FilterIter<C> {
                     .match_any(&hash, self.spks.iter().map(|s| s.as_bytes()))
                     .map_err(FilterError::Filter)?;
             let block = if matched {
-                Some(self.chain.block(hash).await?)
+                Some(convert::block(self.chain.block(hash).await?)?)
             } else {
                 None
             };
-            let id = BlockId { height, hash };
+            let id = BlockId {
+                height,
+                hash: convert::hash_out(hash),
+            };
             self.cp = self.cp.clone().insert(id);
             self.last = Some(id);
             return Ok(Some(Event {

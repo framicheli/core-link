@@ -1,5 +1,5 @@
 //! One error type for every front end: gRPC, REST and WebSocket each render
-//! an [`ApiError`] their own way (PHASE_2.md §4.2).
+//! an [`ApiError`] their own way.
 use bitcoin_node_api::{NodeAPIError, RpcErrorCode, TransportError};
 use std::fmt;
 

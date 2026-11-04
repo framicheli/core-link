@@ -31,14 +31,24 @@
 //! the node's own numbers, exact on every network, testnet3/4's
 //! min-difficulty blocks included. LDK's height hint isn't needed.
 //!
+//! # Two `bitcoin`s
+//!
+//! Types LDK sees (`BlockHash`, `BlockHeaderData`, `BlockData`) are
+//! `lightning::bitcoin`'s; the `ChainSource` underneath uses
+//! `bitcoin_node_api::bitcoin`. They are one crate today and are converted
+//! at the boundary either way, so LDK and `bitcoin-node-api` can move to a
+//! new `bitcoin` independently.
+//!
 //! # Errors
 //!
 //! See [`block_source_error`] for how a [`NodeAPIError`] becomes a
 //! [`BlockSourceError`]; the original error is its `into_inner()`.
 #![warn(missing_docs)]
 
-use bitcoin::BlockHash;
+mod convert;
+
 use bitcoin_node_api::{ChainSource, NodeAPIError, RpcErrorCode};
+use lightning::bitcoin::BlockHash;
 use lightning_block_sync::{
     AsyncBlockSourceResult, BlockData, BlockHeaderData, BlockSource, BlockSourceError,
 };
@@ -79,13 +89,13 @@ impl<C: ChainSource + Send + Sync> BlockSource for ChainBlockSource<C> {
         Box::pin(async move {
             let i = self
                 .chain
-                .header_info(*header_hash)
+                .header_info(convert::hash_in(header_hash))
                 .await
                 .map_err(block_source_error)?;
             Ok(BlockHeaderData {
-                header: i.header,
+                header: convert::header(i.header).map_err(block_source_error)?,
                 height: u32::try_from(i.height).map_err(BlockSourceError::persistent)?,
-                chainwork: i.chain_work,
+                chainwork: convert::work(i.chain_work),
             })
         })
     }
@@ -96,11 +106,13 @@ impl<C: ChainSource + Send + Sync> BlockSource for ChainBlockSource<C> {
         header_hash: &'a BlockHash,
     ) -> AsyncBlockSourceResult<'a, BlockData> {
         Box::pin(async move {
-            self.chain
-                .block(*header_hash)
+            let b = self
+                .chain
+                .block(convert::hash_in(header_hash))
                 .await
-                .map(BlockData::FullBlock)
-                .map_err(block_source_error)
+                .and_then(convert::block)
+                .map_err(block_source_error)?;
+            Ok(BlockData::FullBlock(b))
         })
     }
 
@@ -109,7 +121,7 @@ impl<C: ChainSource + Send + Sync> BlockSource for ChainBlockSource<C> {
         Box::pin(async move {
             let tip = self.chain.tip().await.map_err(block_source_error)?;
             let height = u32::try_from(tip.height).map_err(BlockSourceError::persistent)?;
-            Ok((tip.hash, Some(height)))
+            Ok((convert::hash_out(tip.hash), Some(height)))
         })
     }
 }

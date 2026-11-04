@@ -11,11 +11,12 @@ keywords = ["bitcoin", "bdk", "wallet", "sync", "async"]
 categories = ["cryptography::cryptocurrencies"]
 
 [dependencies]
-bitcoin.workspace = true
 bitcoin-node-api.workspace = true
+# Its `bitcoin` re-export is BDK's own, whatever version it pins.
 bdk_core = "0.6.4"
 
 [dev-dependencies]
+bitcoin.workspace = true
 bitcoin-core-rpc = { path = "../bitcoin-core-rpc" }
 bitcoin-node-mock = { path = "../bitcoin-node-mock" }
 test-node = { path = "../test-node" }

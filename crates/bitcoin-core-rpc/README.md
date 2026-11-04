@@ -31,6 +31,6 @@ like `sendtoaddress` only when the request never left.
 Feature `tracing`: a span per request (method, id, wallet, duration, error
 kind), never params or results.
 
-More: the [repository README](https://github.com/framicheli/bitcoin_rpc).
+More: the [repository README](https://github.com/framicheli/core-link).
 
 License: MIT.
